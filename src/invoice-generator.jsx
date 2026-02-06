@@ -5,13 +5,13 @@ const InvoiceGenerator = () => {
   const [documentType, setDocumentType] = useState('quotation');
   const [currency, setCurrency] = useState('UGX');
   const [exchangeRate] = useState(3700); // UGX to USD approximate rate
-
+  
   const [companyInfo, setCompanyInfo] = useState({
-    name: 'GALENE HOLIDAYS AFRICA',
+    name: 'GAËNE HOLIDAYS AFRICA',
     tagline: 'CRAFTING UNIQUE SAFARIS',
     phone: '+256 701 608674',
-    email: 'basuleedrine@gmail.com',
-    website: 'www.galeneholidaysafrica.com',
+    email: 'basudeedris@gmail.com',
+    website: 'www.gaeneholidaysafrica.com',
     address: 'Kampala, Uganda'
   });
 
@@ -55,11 +55,11 @@ const InvoiceGenerator = () => {
       const itemTotal = item.price * (item.qty || 1);
       return sum + itemTotal;
     }, 0);
-
+    
     const taxAmount = subtotal * (additionalCosts.tax / 100);
     const companyShareAmount = (subtotal + taxAmount) * (additionalCosts.companyShare / 100);
     const total = subtotal + taxAmount + companyShareAmount;
-
+    
     return { subtotal, taxAmount, companyShareAmount, total };
   };
 
@@ -100,9 +100,9 @@ const InvoiceGenerator = () => {
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <FileText className="w-6 h-6 text-indigo-600" />
-              <h1 className="text-2xl font-bold text-slate-800">Galene Document Generator</h1>
+              <h1 className="text-2xl font-bold text-slate-800">Document Generator</h1>
             </div>
-
+            
             <div className="flex flex-wrap items-center gap-3">
               {/* Document Type Selector */}
               <div className="flex bg-slate-100 rounded-lg p-1">
@@ -110,10 +110,11 @@ const InvoiceGenerator = () => {
                   <button
                     key={type}
                     onClick={() => setDocumentType(type)}
-                    className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${documentType === type
-                      ? 'bg-white text-indigo-600 shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900'
-                      }`}
+                    className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                      documentType === type
+                        ? 'bg-white text-indigo-600 shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
                   >
                     {type.charAt(0).toUpperCase() + type.slice(1)}
                   </button>
@@ -125,19 +126,21 @@ const InvoiceGenerator = () => {
                 <div className="flex bg-slate-100 rounded-lg p-1">
                   <button
                     onClick={() => setCurrency('USD')}
-                    className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${currency === 'USD'
-                      ? 'bg-white text-indigo-600 shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900'
-                      }`}
+                    className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                      currency === 'USD'
+                        ? 'bg-white text-indigo-600 shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
                   >
                     USD
                   </button>
                   <button
                     onClick={() => setCurrency('UGX')}
-                    className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${currency === 'UGX'
-                      ? 'bg-white text-indigo-600 shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900'
-                      }`}
+                    className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                      currency === 'UGX'
+                        ? 'bg-white text-indigo-600 shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
                   >
                     UGX
                   </button>
@@ -167,35 +170,35 @@ const InvoiceGenerator = () => {
                   type="text"
                   placeholder="Company Name"
                   value={companyInfo.name}
-                  onChange={(e) => setCompanyInfo({ ...companyInfo, name: e.target.value })}
+                  onChange={(e) => setCompanyInfo({...companyInfo, name: e.target.value})}
                   className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 />
                 <input
                   type="text"
                   placeholder="Tagline"
                   value={companyInfo.tagline}
-                  onChange={(e) => setCompanyInfo({ ...companyInfo, tagline: e.target.value })}
+                  onChange={(e) => setCompanyInfo({...companyInfo, tagline: e.target.value})}
                   className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 />
                 <input
                   type="text"
                   placeholder="Phone"
                   value={companyInfo.phone}
-                  onChange={(e) => setCompanyInfo({ ...companyInfo, phone: e.target.value })}
+                  onChange={(e) => setCompanyInfo({...companyInfo, phone: e.target.value})}
                   className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 />
                 <input
                   type="email"
                   placeholder="Email"
                   value={companyInfo.email}
-                  onChange={(e) => setCompanyInfo({ ...companyInfo, email: e.target.value })}
+                  onChange={(e) => setCompanyInfo({...companyInfo, email: e.target.value})}
                   className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 />
                 <input
                   type="text"
                   placeholder="Website"
                   value={companyInfo.website}
-                  onChange={(e) => setCompanyInfo({ ...companyInfo, website: e.target.value })}
+                  onChange={(e) => setCompanyInfo({...companyInfo, website: e.target.value})}
                   className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 />
               </div>
@@ -208,21 +211,21 @@ const InvoiceGenerator = () => {
                   type="text"
                   placeholder="Client Name"
                   value={clientInfo.name}
-                  onChange={(e) => setClientInfo({ ...clientInfo, name: e.target.value })}
+                  onChange={(e) => setClientInfo({...clientInfo, name: e.target.value})}
                   className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 />
                 <input
                   type="text"
                   placeholder="Client Phone"
                   value={clientInfo.phone}
-                  onChange={(e) => setClientInfo({ ...clientInfo, phone: e.target.value })}
+                  onChange={(e) => setClientInfo({...clientInfo, phone: e.target.value})}
                   className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 />
                 <input
                   type="email"
                   placeholder="Client Email"
                   value={clientInfo.email}
-                  onChange={(e) => setClientInfo({ ...clientInfo, email: e.target.value })}
+                  onChange={(e) => setClientInfo({...clientInfo, email: e.target.value})}
                   className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 />
               </div>
@@ -236,20 +239,20 @@ const InvoiceGenerator = () => {
                     type="text"
                     placeholder="Subject"
                     value={letterContent.subject}
-                    onChange={(e) => setLetterContent({ ...letterContent, subject: e.target.value })}
+                    onChange={(e) => setLetterContent({...letterContent, subject: e.target.value})}
                     className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                   />
                   <textarea
                     placeholder="Letter Body"
                     value={letterContent.body}
-                    onChange={(e) => setLetterContent({ ...letterContent, body: e.target.value })}
+                    onChange={(e) => setLetterContent({...letterContent, body: e.target.value})}
                     rows={10}
                     className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                   />
                   <textarea
                     placeholder="Closing"
                     value={letterContent.closing}
-                    onChange={(e) => setLetterContent({ ...letterContent, closing: e.target.value })}
+                    onChange={(e) => setLetterContent({...letterContent, closing: e.target.value})}
                     rows={3}
                     className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                   />
@@ -318,7 +321,7 @@ const InvoiceGenerator = () => {
                       <input
                         type="number"
                         value={additionalCosts.tax}
-                        onChange={(e) => setAdditionalCosts({ ...additionalCosts, tax: parseFloat(e.target.value) || 0 })}
+                        onChange={(e) => setAdditionalCosts({...additionalCosts, tax: parseFloat(e.target.value) || 0})}
                         className="w-24 px-3 py-2 border border-slate-300 rounded-lg"
                       />
                     </div>
@@ -327,7 +330,7 @@ const InvoiceGenerator = () => {
                       <input
                         type="number"
                         value={additionalCosts.companyShare}
-                        onChange={(e) => setAdditionalCosts({ ...additionalCosts, companyShare: parseFloat(e.target.value) || 0 })}
+                        onChange={(e) => setAdditionalCosts({...additionalCosts, companyShare: parseFloat(e.target.value) || 0})}
                         className="w-24 px-3 py-2 border border-slate-300 rounded-lg"
                       />
                     </div>
