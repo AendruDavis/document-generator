@@ -7,10 +7,10 @@ const InvoiceGenerator = () => {
   const [exchangeRate] = useState(3700);
 
   const [companyInfo, setCompanyInfo] = useState({
-    name: 'GALENE HOLIDAYS AFRICA',
+    name: 'GALËNE HOLIDAYS AFRICA',
     tagline: 'CRAFTING UNIQUE SAFARIS',
-    phone: '+256 701 608674',
-    email: 'basuleedrine@gmail.com',
+    phone: '+256 701606674',
+    email: 'galeneholidaysafrica@gmail.com',
     website: 'www.galeneholidaysafrica.com',
     address: 'Kampala, Uganda'
   });
