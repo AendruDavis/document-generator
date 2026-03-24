@@ -390,7 +390,7 @@ const InvoiceGenerator = () => {
                           {/* Logo circle */}
                           <div className="w-10 h-10 sm:w-12 sm:h-12 print:w-10 print:h-10 rounded-full border border-amber-400 bg-white/10 flex-shrink-0 overflow-hidden flex items-center justify-center">
                             <img
-                              src="/galene-logo.png"
+                              src="/galene-logo.jpeg"
                               alt="Galene Holidays Africa"
                               className="w-full h-full object-contain p-0.5"
                               onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}

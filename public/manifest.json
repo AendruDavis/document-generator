@@ -1,20 +1,20 @@
 {
-  "short_name": "Galene Document Generator",
-  "name": "Create React App Sample",
+  "short_name": "Galene Docs",
+  "name": "Galene Document Generator",
   "icons": [
     {
-      "src": "galene-logo.png",
+      "src": "galene-logo.jpeg",
       "sizes": "64x64 32x32 24x24 16x16",
       "type": "image/x-icon"
     },
     {
-      "src": "galene-logo.png",
-      "type": "image/png",
+      "src": "galene-logo.jpeg",
+      "type": "image/jpeg",
       "sizes": "192x192"
     },
     {
-      "src": "galene-logo.png",
-      "type": "image/png",
+      "src": "galene-logo.jpeg",
+      "type": "image/jpeg",
       "sizes": "512x512"
     }
   ],
