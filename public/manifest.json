@@ -3,18 +3,18 @@
   "name": "Galene Document Generator",
   "icons": [
     {
-      "src": "galene-logo.jpeg",
+      "src": "/galene.png",
       "sizes": "64x64 32x32 24x24 16x16",
       "type": "image/x-icon"
     },
     {
-      "src": "galene-logo.jpeg",
-      "type": "image/jpeg",
+      "src": "/galene.png",
+      "type": "image/png",
       "sizes": "192x192"
     },
     {
-      "src": "galene-logo.jpeg",
-      "type": "image/jpeg",
+      "src": "/galene.png",
+      "type": "image/png",
       "sizes": "512x512"
     }
   ],

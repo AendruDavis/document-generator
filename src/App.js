@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Download, Plus, Trash2, Building2, RefreshCw, CreditCard, Smartphone } from 'lucide-react';
+import { Download, Plus, Trash2, Building2, RefreshCw, CreditCard, Smartphone, ArrowRight, CheckCircle } from 'lucide-react';
 
 const InvoiceGenerator = () => {
-  const [documentType, setDocumentType] = useState('price quotation');
-  const [currency, setCurrency] = useState('UGX'); // ← DEFAULT UGX
+  const [documentType, setDocumentType] = useState('quotation');
+  const [currency, setCurrency] = useState('UGX');
   const [exchangeRate, setExchangeRate] = useState(3700);
   const [rateLoading, setRateLoading] = useState(false);
   const [rateError, setRateError] = useState(null);
@@ -18,19 +18,29 @@ const InvoiceGenerator = () => {
     address: 'Kampala, Uganda'
   });
 
+  // Client info — shared across all document types
   const [clientInfo, setClientInfo] = useState({
     name: '',
+    nationality: '',
     phone: '',
-    email: ''
+    email: '',
+    pax: 1,
+    arrivalDate: '',
+    departureDate: ''
   });
 
+  // Document-level details — each field used only where relevant
   const [documentDetails, setDocumentDetails] = useState({
     number: '001',
-    date: new Date().toISOString().split('T')[0]
+    date: new Date().toISOString().split('T')[0],
+    validUntil: '',      // quotation only
+    dueDate: '',         // invoice only
+    depositPaid: 0,      // invoice + receipt
+    paymentMethod: 'bank' // receipt only: 'bank' | 'momo' | 'cash'
   });
 
   const [lineItems, setLineItems] = useState([
-    { description: '', price: 0, qty: 1, unit: 'pax' } // price stored in UGX
+    { description: '', price: 0, qty: 1, unit: 'pax' }
   ]);
 
   const [additionalCosts, setAdditionalCosts] = useState({
@@ -62,8 +72,20 @@ const InvoiceGenerator = () => {
   const [letterContent, setLetterContent] = useState({
     subject: '',
     body: '',
-    closing: 'Sincerely,\n\nPaul Edrine Basude\nDirector'
+    closing: 'Sincerely,\n\nPaul Edrine Basule\nDirector'
   });
+
+  // ── Convert quotation → invoice, carrying all data forward
+  const convertToInvoice = () => {
+    setDocumentType('invoice');
+    setDocumentDetails(prev => ({
+      ...prev,
+      number: String(parseInt(prev.number || '1') + 1).padStart(3, '0'),
+      date: new Date().toISOString().split('T')[0],
+      dueDate: '',
+      depositPaid: 0
+    }));
+  };
 
   const fetchExchangeRate = async () => {
     setRateLoading(true);
@@ -71,61 +93,63 @@ const InvoiceGenerator = () => {
     try {
       const res = await fetch('https://open.er-api.com/v6/latest/USD');
       const data = await res.json();
-      if (data && data.rates && data.rates.UGX) {
+      if (data?.rates?.UGX) {
         setExchangeRate(Math.round(data.rates.UGX));
         setRateLastUpdated(new Date().toLocaleTimeString());
-      } else {
-        throw new Error('Invalid response');
-      }
-    } catch (err) {
+      } else throw new Error('Invalid response');
+    } catch {
       setRateError('Could not fetch live rate');
     } finally {
       setRateLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchExchangeRate();
-  }, []);
+  useEffect(() => { fetchExchangeRate(); }, []);
 
   const calculateTotal = () => {
     const subtotal = lineItems.reduce((sum, item) => sum + item.price * (item.qty || 1), 0);
     const taxAmount = subtotal * (additionalCosts.tax / 100);
     const companyShareAmount = (subtotal + taxAmount) * (additionalCosts.companyShare / 100);
     const total = subtotal + taxAmount + companyShareAmount;
-    return { subtotal, taxAmount, companyShareAmount, total };
+    const balanceDue = Math.max(0, total - (documentDetails.depositPaid || 0));
+    return { subtotal, taxAmount, companyShareAmount, total, balanceDue };
   };
 
-  // Prices are stored in UGX. USD is derived by dividing by exchange rate.
+  // Prices stored in UGX; USD derived by dividing by exchange rate
   const formatCurrency = (ugxAmount) => {
-    if (currency === 'UGX') {
-      return `UGX ${Math.round(ugxAmount).toLocaleString()}`;
-    }
-    return `$${(ugxAmount / exchangeRate).toFixed(2)}`;
-  };
-
-  const formatUnitPrice = (ugxAmount) => {
-    if (currency === 'UGX') {
-      return `UGX ${Math.round(ugxAmount).toLocaleString()}`;
-    }
+    if (currency === 'UGX') return `UGX ${Math.round(ugxAmount).toLocaleString()}`;
     return `$${(ugxAmount / exchangeRate).toFixed(2)}`;
   };
 
   const addLineItem = () => setLineItems([...lineItems, { description: '', price: 0, qty: 1, unit: 'pax' }]);
-  const removeLineItem = (index) => setLineItems(lineItems.filter((_, i) => i !== index));
-  const updateLineItem = (index, field, value) => {
+  const removeLineItem = (i) => setLineItems(lineItems.filter((_, idx) => idx !== i));
+  const updateLineItem = (i, field, value) => {
     const updated = [...lineItems];
-    updated[index][field] = field === 'price' || field === 'qty' ? parseFloat(value) || 0 : value;
+    updated[i][field] = (field === 'price' || field === 'qty') ? parseFloat(value) || 0 : value;
     setLineItems(updated);
   };
 
   const totals = calculateTotal();
+  const isLetter = documentType === 'letter';
+  const isQuotation = documentType === 'quotation';
+  const isInvoice = documentType === 'invoice';
+  const isReceipt = documentType === 'receipt';
+
+  const formatDate = (d) => d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : '—';
 
   const inputClass = "w-full px-3 py-2 border border-stone-300 rounded-md focus:ring-2 focus:ring-emerald-600 focus:border-transparent transition-all text-sm";
+  const labelClass = "block text-xs font-semibold text-stone-500 uppercase tracking-wider mb-1";
+
+  const paymentMethodOptions = [
+    { value: 'bank', label: 'Bank Transfer' },
+    { value: 'momo', label: 'Mobile Money' },
+    { value: 'cash', label: 'Cash' }
+  ];
 
   return (
     <div className="min-h-screen bg-stone-50">
-      {/* Navigation Bar */}
+
+      {/* ── Navigation ── */}
       <div className="print:hidden fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-emerald-900 via-emerald-800 to-teal-900 shadow-lg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-5">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -154,16 +178,16 @@ const InvoiceGenerator = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid lg:grid-cols-5 gap-4 sm:gap-6 lg:gap-8">
 
-            {/* Sidebar Controls */}
-            <div className="lg:col-span-2 print:hidden space-y-4 sm:space-y-6">
+            {/* ══ SIDEBAR ══ */}
+            <div className="lg:col-span-2 print:hidden space-y-4">
 
               {/* Document Type */}
-              <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-4 sm:p-6">
-                <label className="block text-xs sm:text-sm font-bold text-stone-800 mb-3 uppercase tracking-wider">Document Type</label>
+              <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-4">
+                <label className={labelClass}>Document Type</label>
                 <div className="grid grid-cols-2 gap-2">
                   {['quotation', 'invoice', 'receipt', 'letter'].map((type) => (
                     <button key={type} onClick={() => setDocumentType(type)}
-                      className={`px-3 sm:px-4 py-2 sm:py-3 rounded-md text-xs sm:text-sm font-semibold transition-all ${documentType === type
+                      className={`px-3 py-2 rounded-md text-xs font-semibold transition-all ${documentType === type
                         ? 'bg-gradient-to-r from-emerald-700 to-teal-700 text-white shadow-md'
                         : 'bg-stone-100 text-stone-700 hover:bg-stone-200'}`}>
                       {type.charAt(0).toUpperCase() + type.slice(1)}
@@ -172,14 +196,14 @@ const InvoiceGenerator = () => {
                 </div>
               </div>
 
-              {/* Currency + Live Rate */}
-              {documentType !== 'letter' && (
-                <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-4 sm:p-6">
-                  <label className="block text-xs sm:text-sm font-bold text-stone-800 mb-3 uppercase tracking-wider">Currency</label>
-                  <div className="flex gap-2 mb-4">
+              {/* Currency + Live Rate — not for letter */}
+              {!isLetter && (
+                <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-4">
+                  <label className={labelClass}>Currency</label>
+                  <div className="flex gap-2 mb-3">
                     {['UGX', 'USD'].map((c) => (
                       <button key={c} onClick={() => setCurrency(c)}
-                        className={`flex-1 px-3 sm:px-4 py-2 sm:py-3 rounded-md text-xs sm:text-sm font-semibold transition-all ${currency === c
+                        className={`flex-1 px-3 py-2 rounded-md text-xs font-semibold transition-all ${currency === c
                           ? 'bg-amber-500 text-white shadow-md'
                           : 'bg-stone-100 text-stone-700 hover:bg-stone-200'}`}>
                         {c === 'UGX' ? 'UGX' : 'USD ($)'}
@@ -187,33 +211,29 @@ const InvoiceGenerator = () => {
                     ))}
                   </div>
                   <div className="bg-emerald-50 border border-emerald-200 rounded-md p-3">
-                    <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center justify-between mb-1.5">
                       <span className="text-xs font-bold text-emerald-800 uppercase tracking-wide">Live USD/UGX Rate</span>
                       <button onClick={fetchExchangeRate} disabled={rateLoading}
-                        className="flex items-center gap-1 text-xs text-emerald-700 hover:text-emerald-900 font-semibold transition-colors disabled:opacity-50">
-                        <RefreshCw className={`w-3 h-3 ${rateLoading ? 'animate-spin' : ''}`} />
-                        Refresh
+                        className="flex items-center gap-1 text-xs text-emerald-700 hover:text-emerald-900 font-semibold disabled:opacity-50">
+                        <RefreshCw className={`w-3 h-3 ${rateLoading ? 'animate-spin' : ''}`} /> Refresh
                       </button>
                     </div>
                     <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        value={exchangeRate}
+                      <input type="number" value={exchangeRate}
                         onChange={(e) => setExchangeRate(parseFloat(e.target.value) || 0)}
-                        className="w-28 px-2 py-1 border border-emerald-300 rounded text-sm font-bold text-emerald-900 bg-white"
-                      />
+                        className="w-28 px-2 py-1 border border-emerald-300 rounded text-sm font-bold text-emerald-900 bg-white" />
                       <span className="text-xs text-emerald-700">UGX per $1</span>
                     </div>
-                    {rateError && <p className="text-xs text-red-500 mt-1">{rateError} — rate is editable above.</p>}
+                    {rateError && <p className="text-xs text-red-500 mt-1">{rateError} — editable above.</p>}
                     {rateLastUpdated && !rateError && <p className="text-xs text-emerald-600 mt-1">Updated at {rateLastUpdated}</p>}
                   </div>
                 </div>
               )}
 
               {/* Company Information */}
-              <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-4 sm:p-6">
-                <h2 className="text-xs sm:text-sm font-bold text-stone-800 mb-3 sm:mb-4 uppercase tracking-wider">Company Information</h2>
-                <div className="space-y-2 sm:space-y-3">
+              <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-4">
+                <label className={labelClass}>Company Information</label>
+                <div className="space-y-2">
                   {[['name', 'Company Name'], ['tagline', 'Tagline'], ['phone', 'Phone'], ['email', 'Email'], ['website', 'Website']].map(([key, placeholder]) => (
                     <input key={key} type="text" placeholder={placeholder} value={companyInfo[key]}
                       onChange={(e) => setCompanyInfo({ ...companyInfo, [key]: e.target.value })}
@@ -222,22 +242,49 @@ const InvoiceGenerator = () => {
                 </div>
               </div>
 
-              {/* Client Information */}
-              <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-4 sm:p-6">
-                <h2 className="text-xs sm:text-sm font-bold text-stone-800 mb-3 sm:mb-4 uppercase tracking-wider">Client Information</h2>
-                <div className="space-y-2 sm:space-y-3">
-                  {[['name', 'text', 'Client Name'], ['phone', 'text', 'Client Phone'], ['email', 'email', 'Client Email']].map(([key, type, placeholder]) => (
-                    <input key={key} type={type} placeholder={placeholder} value={clientInfo[key]}
-                      onChange={(e) => setClientInfo({ ...clientInfo, [key]: e.target.value })}
-                      className={inputClass} />
-                  ))}
+              {/* Client Information — shared */}
+              <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-4">
+                <label className={labelClass}>Client Information</label>
+                <div className="space-y-2">
+                  <input type="text" placeholder="Full Name" value={clientInfo.name}
+                    onChange={(e) => setClientInfo({ ...clientInfo, name: e.target.value })} className={inputClass} />
+                  <input type="text" placeholder="Nationality / Country" value={clientInfo.nationality}
+                    onChange={(e) => setClientInfo({ ...clientInfo, nationality: e.target.value })} className={inputClass} />
+                  <input type="text" placeholder="Phone" value={clientInfo.phone}
+                    onChange={(e) => setClientInfo({ ...clientInfo, phone: e.target.value })} className={inputClass} />
+                  <input type="email" placeholder="Email" value={clientInfo.email}
+                    onChange={(e) => setClientInfo({ ...clientInfo, email: e.target.value })} className={inputClass} />
+
+                  {/* Travel fields — not needed for letter */}
+                  {!isLetter && (
+                    <>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <p className={labelClass}>Arrival</p>
+                          <input type="date" value={clientInfo.arrivalDate}
+                            onChange={(e) => setClientInfo({ ...clientInfo, arrivalDate: e.target.value })} className={inputClass} />
+                        </div>
+                        <div>
+                          <p className={labelClass}>Departure</p>
+                          <input type="date" value={clientInfo.departureDate}
+                            onChange={(e) => setClientInfo({ ...clientInfo, departureDate: e.target.value })} className={inputClass} />
+                        </div>
+                      </div>
+                      <div>
+                        <p className={labelClass}>No. of Guests (Pax)</p>
+                        <input type="number" min="1" placeholder="1" value={clientInfo.pax}
+                          onChange={(e) => setClientInfo({ ...clientInfo, pax: parseInt(e.target.value) || 1 })} className={inputClass} />
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
 
-              {documentType === 'letter' ? (
-                <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-4 sm:p-6">
-                  <h2 className="text-xs sm:text-sm font-bold text-stone-800 mb-3 sm:mb-4 uppercase tracking-wider">Letter Content</h2>
-                  <div className="space-y-2 sm:space-y-3">
+              {/* Letter content */}
+              {isLetter && (
+                <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-4">
+                  <label className={labelClass}>Letter Content</label>
+                  <div className="space-y-2">
                     <input type="text" placeholder="Subject" value={letterContent.subject}
                       onChange={(e) => setLetterContent({ ...letterContent, subject: e.target.value })} className={inputClass} />
                     <textarea placeholder="Letter Body" value={letterContent.body}
@@ -248,194 +295,286 @@ const InvoiceGenerator = () => {
                       rows={4} className={inputClass} />
                   </div>
                 </div>
-              ) : (
-                <>
-                  {/* Line Items */}
-                  <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-4 sm:p-6">
-                    <div className="flex items-center justify-between mb-3 sm:mb-4">
-                      <h2 className="text-xs sm:text-sm font-bold text-stone-800 uppercase tracking-wider">Line Items</h2>
-                      <button onClick={addLineItem}
-                        className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-emerald-700 text-white rounded-md hover:bg-emerald-800 transition-all text-xs sm:text-sm font-semibold shadow-sm">
-                        <Plus className="w-3 h-3 sm:w-4 sm:h-4" /> Add
-                      </button>
-                    </div>
-                    <div className="space-y-2 sm:space-y-3">
-                      {lineItems.map((item, index) => (
-                        <div key={index} className="bg-stone-50 p-3 sm:p-4 rounded-md border border-stone-200">
-                          <div className="space-y-2">
-                            <input type="text" placeholder="Description" value={item.description}
-                              onChange={(e) => updateLineItem(index, 'description', e.target.value)}
-                              className="w-full px-2 sm:px-3 py-2 border border-stone-300 rounded-md text-xs sm:text-sm" />
-                            <div className="grid grid-cols-3 gap-2">
-                              <input type="number" placeholder="Price (UGX)" value={item.price}
-                                onChange={(e) => updateLineItem(index, 'price', e.target.value)}
-                                className="px-2 sm:px-3 py-2 border border-stone-300 rounded-md text-xs sm:text-sm" />
-                              <input type="number" placeholder="Qty" value={item.qty}
-                                onChange={(e) => updateLineItem(index, 'qty', e.target.value)}
-                                className="px-2 sm:px-3 py-2 border border-stone-300 rounded-md text-xs sm:text-sm" />
-                              <input type="text" placeholder="Unit" value={item.unit}
-                                onChange={(e) => updateLineItem(index, 'unit', e.target.value)}
-                                className="px-2 sm:px-3 py-2 border border-stone-300 rounded-md text-xs sm:text-sm" />
-                            </div>
-                          </div>
-                          <button onClick={() => removeLineItem(index)}
-                            className="mt-2 p-2 text-red-600 hover:bg-red-50 rounded-md transition-all w-full flex items-center justify-center gap-2 text-xs sm:text-sm">
-                            <Trash2 className="w-3 h-3 sm:w-4 sm:h-4" /> Remove
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+              )}
 
-                  {/* Additional Costs */}
-                  <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-4 sm:p-6">
-                    <h2 className="text-xs sm:text-sm font-bold text-stone-800 mb-3 sm:mb-4 uppercase tracking-wider">Additional Costs</h2>
-                    <div className="space-y-2 sm:space-y-3">
-                      {[['tax', 'Tax (%)'], ['companyShare', 'Company Share (%)']].map(([key, label]) => (
-                        <div key={key} className="flex items-center gap-3">
-                          <label className="flex-1 text-xs sm:text-sm font-medium text-stone-700">{label}</label>
-                          <input type="number" value={additionalCosts[key]}
-                            onChange={(e) => setAdditionalCosts({ ...additionalCosts, [key]: parseFloat(e.target.value) || 0 })}
-                            className="w-20 sm:w-24 px-2 sm:px-3 py-2 border border-stone-300 rounded-md text-xs sm:text-sm" />
+              {/* Document Details — varies by type */}
+              {!isLetter && (
+                <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-4">
+                  <label className={labelClass}>Document Details</label>
+                  <div className="space-y-2">
+                    {/* Invoice number — invoice and receipt */}
+                    {(isInvoice || isReceipt) && (
+                      <div>
+                        <p className={labelClass}>{isReceipt ? 'Receipt No.' : 'Invoice No.'}</p>
+                        <input type="text" value={documentDetails.number}
+                          onChange={(e) => setDocumentDetails({ ...documentDetails, number: e.target.value })}
+                          className={inputClass} />
+                      </div>
+                    )}
+                    {/* Date */}
+                    <div>
+                      <p className={labelClass}>Date</p>
+                      <input type="date" value={documentDetails.date}
+                        onChange={(e) => setDocumentDetails({ ...documentDetails, date: e.target.value })}
+                        className={inputClass} />
+                    </div>
+                    {/* Valid Until — quotation only */}
+                    {isQuotation && (
+                      <div>
+                        <p className={labelClass}>Valid Until</p>
+                        <input type="date" value={documentDetails.validUntil}
+                          onChange={(e) => setDocumentDetails({ ...documentDetails, validUntil: e.target.value })}
+                          className={inputClass} />
+                      </div>
+                    )}
+                    {/* Payment Due Date — invoice only */}
+                    {isInvoice && (
+                      <div>
+                        <p className={labelClass}>Payment Due Date</p>
+                        <input type="date" value={documentDetails.dueDate}
+                          onChange={(e) => setDocumentDetails({ ...documentDetails, dueDate: e.target.value })}
+                          className={inputClass} />
+                      </div>
+                    )}
+                    {/* Deposit Paid — invoice + receipt */}
+                    {(isInvoice || isReceipt) && (
+                      <div>
+                        <p className={labelClass}>Deposit / Amount Paid (UGX)</p>
+                        <input type="number" placeholder="0" value={documentDetails.depositPaid}
+                          onChange={(e) => setDocumentDetails({ ...documentDetails, depositPaid: parseFloat(e.target.value) || 0 })}
+                          className={inputClass} />
+                      </div>
+                    )}
+                    {/* Payment Method — receipt only */}
+                    {isReceipt && (
+                      <div>
+                        <p className={labelClass}>Payment Method</p>
+                        <div className="grid grid-cols-3 gap-1.5">
+                          {paymentMethodOptions.map(({ value, label }) => (
+                            <button key={value}
+                              onClick={() => setDocumentDetails({ ...documentDetails, paymentMethod: value })}
+                              className={`py-2 px-2 rounded-md text-xs font-semibold transition-all ${documentDetails.paymentMethod === value
+                                ? 'bg-emerald-700 text-white'
+                                : 'bg-stone-100 text-stone-700 hover:bg-stone-200'}`}>
+                              {label}
+                            </button>
+                          ))}
                         </div>
-                      ))}
-                    </div>
+                      </div>
+                    )}
                   </div>
+                </div>
+              )}
 
-                  {/* Payment Details Sidebar */}
-                  <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-4 sm:p-6">
-                    <h2 className="text-xs sm:text-sm font-bold text-stone-800 mb-1 uppercase tracking-wider flex items-center gap-2">
-                      <CreditCard className="w-4 h-4 text-emerald-700" /> Payment Details
-                    </h2>
-                    <p className="text-xs text-stone-500 mb-4">Bank & mobile money info shown on document</p>
-                    <div className="space-y-3">
-                      <p className="text-xs font-bold text-stone-500 uppercase tracking-wider">Bank Details</p>
-                      {[
-                        ['accountName', 'Account Name'],
-                        ['accountDetails', 'Account Details'],
-                        ['bankName', 'Bank Name'],
-                        ['branchName', 'Branch Name'],
-                        ['streetNameOfBank', 'Street Name Of The Bank'],
-                        ['swiftCode', 'SWIFT / BIC Code'],
-                        ['bankCode', 'Bank Code'],
-                        ['branchCode', 'Branch Code'],
-                      ].map(([key, placeholder]) => (
-                        <input key={key} type="text" placeholder={placeholder} value={paymentDetails[key]}
-                          onChange={(e) => setPaymentDetails({ ...paymentDetails, [key]: e.target.value })}
-                          className={inputClass} />
-                      ))}
-                      <p className="text-xs font-bold text-stone-500 uppercase tracking-wider pt-2">Mobile Money</p>
-                      {[
-                        ['mobileProvider', 'Provider (e.g. MTN MoMo)'],
-                        ['mobileMoney', 'Mobile Number'],
-                        ['mobileMoneyName', 'Registered Name'],
-                      ].map(([key, placeholder]) => (
-                        <input key={key} type="text" placeholder={placeholder} value={paymentDetails[key]}
-                          onChange={(e) => setPaymentDetails({ ...paymentDetails, [key]: e.target.value })}
-                          className={inputClass} />
-                      ))}
-                    </div>
+              {/* Line Items — not for letter */}
+              {!isLetter && (
+                <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <label className={`${labelClass} mb-0`}>Line Items</label>
+                    <button onClick={addLineItem}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-700 text-white rounded-md hover:bg-emerald-800 transition-all text-xs font-semibold">
+                      <Plus className="w-3 h-3" /> Add
+                    </button>
                   </div>
-                </>
+                  <div className="space-y-2">
+                    {lineItems.map((item, index) => (
+                      <div key={index} className="bg-stone-50 p-3 rounded-md border border-stone-200">
+                        <input type="text" placeholder="Description" value={item.description}
+                          onChange={(e) => updateLineItem(index, 'description', e.target.value)}
+                          className="w-full px-2 py-1.5 border border-stone-300 rounded-md text-xs mb-2" />
+                        <div className="grid grid-cols-3 gap-1.5">
+                          <input type="number" placeholder="Price (UGX)" value={item.price}
+                            onChange={(e) => updateLineItem(index, 'price', e.target.value)}
+                            className="px-2 py-1.5 border border-stone-300 rounded-md text-xs" />
+                          <input type="number" placeholder="Qty" value={item.qty}
+                            onChange={(e) => updateLineItem(index, 'qty', e.target.value)}
+                            className="px-2 py-1.5 border border-stone-300 rounded-md text-xs" />
+                          <input type="text" placeholder="Unit" value={item.unit}
+                            onChange={(e) => updateLineItem(index, 'unit', e.target.value)}
+                            className="px-2 py-1.5 border border-stone-300 rounded-md text-xs" />
+                        </div>
+                        <button onClick={() => removeLineItem(index)}
+                          className="mt-2 w-full flex items-center justify-center gap-1.5 py-1.5 text-xs text-red-500 hover:bg-red-50 rounded-md transition-all">
+                          <Trash2 className="w-3 h-3" /> Remove
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Additional Costs — not for letter or receipt */}
+              {!isLetter && !isReceipt && (
+                <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-4">
+                  <label className={labelClass}>Additional Costs</label>
+                  <div className="space-y-2">
+                    {[['tax', 'Tax (%)'], ['companyShare', 'Company Share (%)']].map(([key, label]) => (
+                      <div key={key} className="flex items-center gap-3">
+                        <span className="flex-1 text-sm text-stone-700">{label}</span>
+                        <input type="number" value={additionalCosts[key]}
+                          onChange={(e) => setAdditionalCosts({ ...additionalCosts, [key]: parseFloat(e.target.value) || 0 })}
+                          className="w-20 px-2 py-1.5 border border-stone-300 rounded-md text-sm" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Payment Details — not for letter or quotation */}
+              {!isLetter && !isQuotation && (
+                <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-4">
+                  <label className={`${labelClass} flex items-center gap-1.5`}>
+                    <CreditCard className="w-3.5 h-3.5 text-emerald-700" /> Payment Details
+                  </label>
+                  <p className="text-xs text-stone-400 mb-3">Bank & mobile money shown on document</p>
+                  <div className="space-y-2">
+                    <p className="text-xs font-bold text-stone-400 uppercase tracking-wider">Bank</p>
+                    {[
+                      ['accountName', 'Account Name'], ['accountDetails', 'Account Details'],
+                      ['bankName', 'Bank Name'], ['branchName', 'Branch Name'],
+                      ['streetNameOfBank', 'Street Name'], ['swiftCode', 'SWIFT / BIC Code'],
+                      ['bankCode', 'Bank Code'], ['branchCode', 'Branch Code'],
+                    ].map(([key, placeholder]) => (
+                      <input key={key} type="text" placeholder={placeholder} value={paymentDetails[key]}
+                        onChange={(e) => setPaymentDetails({ ...paymentDetails, [key]: e.target.value })}
+                        className={inputClass} />
+                    ))}
+                    <p className="text-xs font-bold text-stone-400 uppercase tracking-wider pt-1">Mobile Money</p>
+                    {[
+                      ['mobileProvider', 'Provider'], ['mobileMoney', 'Mobile Number'], ['mobileMoneyName', 'Registered Name'],
+                    ].map(([key, placeholder]) => (
+                      <input key={key} type="text" placeholder={placeholder} value={paymentDetails[key]}
+                        onChange={(e) => setPaymentDetails({ ...paymentDetails, [key]: e.target.value })}
+                        className={inputClass} />
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
 
-            {/* Document Preview */}
+            {/* ══ DOCUMENT PREVIEW ══ */}
             <div className="lg:col-span-3 print:col-span-full">
               <div className="bg-white shadow-xl border border-stone-200 overflow-hidden print:shadow-none print:border-0">
 
-                {documentType === 'letter' ? (
-                  <div className="p-8 sm:p-12 lg:p-16 print:p-12">
-                    <div className="border-b-4 border-amber-500 pb-4 sm:pb-6 mb-6 sm:mb-8 page-break-avoid">
-                      <div className="flex items-start justify-between mb-3 sm:mb-4">
+                {/* ── LETTER ── */}
+                {isLetter && (
+                  <div className="p-8 sm:p-12 print:p-10">
+                    <div className="border-b-4 border-amber-500 pb-4 mb-2 page-break-avoid">
+                      <div className="flex items-start justify-between">
                         <div className="flex-1">
-                          <h1 className="text-xl sm:text-2xl lg:text-3xl print:text-2xl font-bold text-stone-900 tracking-tight mb-1">{companyInfo.name}</h1>
-                          <p className="text-xs sm:text-sm print:text-xs text-emerald-800 uppercase tracking-widest font-semibold">{companyInfo.tagline}</p>
+                          <h1 className="text-xl font-bold text-stone-900 tracking-tight mb-0.5">{companyInfo.name}</h1>
+                          <p className="text-xs text-emerald-800 uppercase tracking-widest font-semibold">{companyInfo.tagline}</p>
                         </div>
-                        {/* Logo in letter header */}
-                        <div className="w-14 h-14 sm:w-20 sm:h-20 rounded-full border-2 border-amber-500 flex-shrink-0 overflow-hidden bg-emerald-50 flex items-center justify-center ml-4">
-                          <img src="/galene-logo.png" alt="Logo" className="w-full h-full object-contain p-1"
+                        <div className="w-12 h-12 rounded-full border border-amber-500 flex-shrink-0 overflow-hidden bg-emerald-50 flex items-center justify-center ml-4">
+                          <img src="/galene.png" alt="Logo" className="w-full h-full object-cover "
                             onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'block'; }} />
-                          <span className="text-emerald-800 font-extrabold text-2xl hidden">G</span>
+                          <span className="text-emerald-800 font-extrabold text-lg hidden">G</span>
                         </div>
                       </div>
-                      <div className="mt-4 sm:mt-6 text-sm sm:text-base text-stone-700 space-y-1">
-                        <p className="font-medium">{companyInfo.phone}</p>
-                        <p className="text-emerald-800 font-medium">{companyInfo.email}</p>
-                        <p className="text-emerald-800 font-medium">{companyInfo.website}</p>
+                      <div className="mt-1 text-xs text-stone-600">
+                        <p>{companyInfo.email}</p>
+                        <p>{companyInfo.website}</p>
+                        <p>{companyInfo.phone}</p>
                       </div>
                     </div>
-                    <div className="mb-6 sm:mb-8">
-                      <p className="text-sm sm:text-base text-stone-600 font-medium">{new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                    <p className="text-xs text-stone-500 mb-5">{formatDate(documentDetails.date)}</p>
+                    <div className="mb-5">
+                      <p className="font-semibold text-stone-900 text-sm">{clientInfo.name || 'Dear Guest,'}</p>
+                      {clientInfo.email && <p className="text-xs text-stone-500">{clientInfo.email}</p>}
+                      {clientInfo.phone && <p className="text-xs text-stone-500">{clientInfo.phone}</p>}
                     </div>
-                    <div className="mb-6 sm:mb-8">
-                      <p className="font-bold text-stone-900 text-xl sm:text-2xl mb-2">{clientInfo.name}</p>
-                      <p className="text-sm sm:text-base text-stone-600">{clientInfo.email}</p>
-                      <p className="text-sm sm:text-base text-stone-600">{clientInfo.phone}</p>
+                    <div className="mb-5 pb-3 border-b border-stone-200">
+                      <p className="font-semibold text-stone-900 text-sm"><span className="text-stone-500 font-normal">Re: </span>{letterContent.subject}</p>
                     </div>
-                    <div className="mb-6 sm:mb-8 pb-3 border-b border-stone-200">
-                      <p className="font-bold text-stone-900 text-base sm:text-lg"><span className="text-stone-600">Re:</span> {letterContent.subject}</p>
-                    </div>
-                    <div className="mb-10 sm:mb-16 whitespace-pre-wrap text-stone-700 leading-relaxed text-base sm:text-lg">{letterContent.body}</div>
-                    <div className="whitespace-pre-wrap text-stone-700 leading-relaxed text-base sm:text-lg">{letterContent.closing}</div>
+                    <div className="mb-10 whitespace-pre-wrap text-stone-700 leading-relaxed text-sm">{letterContent.body}</div>
+                    <div className="whitespace-pre-wrap text-stone-700 leading-relaxed text-sm">{letterContent.closing}</div>
                   </div>
-                ) : (
+                )}
+
+                {/* ── QUOTATION / INVOICE / RECEIPT ── */}
+                {!isLetter && (
                   <div>
                     {/* Header */}
-                    <div className="bg-gradient-to-r from-emerald-900 via-emerald-800 to-teal-700 text-white px-6 sm:px-8 lg:px-10 py-4 sm:py-5 print:px-6 print:py-4 page-break-avoid">
+                    <div className="bg-gradient-to-r from-emerald-900 via-emerald-800 to-teal-700 text-white px-6 sm:px-8 py-4 print:px-6 print:py-4 page-break-avoid">
                       <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
-
-                        {/* Left: Logo + company */}
                         <div className="flex items-center gap-3 flex-1">
-                          {/* Logo circle */}
-                          <div className="w-10 h-10 sm:w-12 sm:h-12 print:w-10 print:h-10 rounded-full border border-amber-400 bg-white/10 flex-shrink-0 overflow-hidden flex items-center justify-center">
-                            <img
-                              src="/galene-logo.jpeg"
-                              alt="Galene Holidays Africa"
-                              className="w-full h-full object-contain p-0.5"
-                              onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}
-                            />
+                          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full border border-amber-400 bg-white/10 flex-shrink-0 overflow-hidden flex items-center justify-center">
+                            <img src="/galene.png" alt="Logo" className="w-full h-full object-cover "
+                            onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'block'; }} />
                             <span className="text-amber-300 font-extrabold text-lg hidden w-full h-full items-center justify-center">G</span>
                           </div>
                           <div>
                             <h1 className="text-lg sm:text-xl font-bold tracking-tight leading-tight">{companyInfo.name}</h1>
                             <p className="text-xs uppercase tracking-widest text-emerald-200 font-semibold">{companyInfo.tagline}</p>
-                            <div className="flex flex-wrap gap-x-3 gap-y-0 text-xs text-emerald-100 mt-0.5">
+                            <div className="flex flex-wrap gap-x-3 text-xs text-emerald-100 mt-0.5">
                               <span>{companyInfo.email}</span>
                               <span>{companyInfo.phone}</span>
                               <span className="font-semibold">{companyInfo.website}</span>
                             </div>
                           </div>
                         </div>
-
-                        {/* Right: Client info */}
                         <div className="w-full sm:w-auto bg-black/20 backdrop-blur-sm px-4 py-3 rounded-md border border-white/20 min-w-[200px]">
                           <p className="text-xs uppercase tracking-widest text-amber-300 font-bold mb-1">Bill To</p>
                           <p className="font-bold text-base sm:text-lg text-white leading-tight">
                             {clientInfo.name || <span className="opacity-30 text-sm">Client Name</span>}
                           </p>
-                          <div className="flex flex-col gap-0">
-                            {clientInfo.phone && (
-                              <p className="text-xs text-emerald-100"><i className="fas fa-phone-alt mr-1"></i> {clientInfo.phone}</p>
-                            )}
-                            {clientInfo.email && (
-                              <p className="text-xs text-emerald-100"><i className="fas fa-envelope mr-1"></i> {clientInfo.email}</p>
-                            )}
-                            {!clientInfo.phone && !clientInfo.email && (
-                              <p className="text-xs text-white/30 italic">No contact details</p>
-                            )}
-                          </div>
+                          {clientInfo.nationality && <p className="text-xs text-emerald-200">{clientInfo.nationality}</p>}
+                          {clientInfo.phone && <p className="text-xs text-emerald-100">📞 {clientInfo.phone}</p>}
+                          {clientInfo.email && <p className="text-xs text-emerald-100">✉️ {clientInfo.email}</p>}
                         </div>
-
                       </div>
                     </div>
 
                     {/* Document Title Bar */}
                     <div className="bg-stone-100 border-b border-stone-200 py-2 px-6 page-break-avoid">
-                      <h2 className="text-sm font-bold uppercase tracking-widest text-stone-600 text-center">{documentType}</h2>
+                      <div className="flex items-center justify-between">
+                        <h2 className="text-sm font-bold uppercase tracking-widest text-stone-600">
+                          {documentType}
+                          {isInvoice && documentDetails.number && (
+                            <span className="ml-2 text-stone-400 font-normal normal-case tracking-normal">#{documentDetails.number}</span>
+                          )}
+                          {isReceipt && documentDetails.number && (
+                            <span className="ml-2 text-stone-400 font-normal normal-case tracking-normal">#{documentDetails.number}</span>
+                          )}
+                        </h2>
+                        <div className="flex items-center gap-4 text-xs text-stone-500">
+                          <span>Date: <strong className="text-stone-700">{formatDate(documentDetails.date)}</strong></span>
+                          {isQuotation && documentDetails.validUntil && (
+                            <span>Valid until: <strong className="text-amber-600">{formatDate(documentDetails.validUntil)}</strong></span>
+                          )}
+                          {isInvoice && documentDetails.dueDate && (
+                            <span>Due: <strong className="text-red-600">{formatDate(documentDetails.dueDate)}</strong></span>
+                          )}
+                        </div>
+                      </div>
                     </div>
 
                     <div className="p-6 print:p-5">
+
+                      {/* Trip Summary — shown on all non-letter docs when dates/pax filled */}
+                      {(clientInfo.arrivalDate || clientInfo.departureDate || clientInfo.pax > 1) && (
+                        <div className="mb-4 grid grid-cols-3 gap-2 bg-stone-50 border border-stone-200 rounded-md p-3">
+                          {clientInfo.arrivalDate && (
+                            <div>
+                              <p className="text-xs text-stone-400 uppercase tracking-wide">Arrival</p>
+                              <p className="text-xs font-semibold text-stone-700">{formatDate(clientInfo.arrivalDate)}</p>
+                            </div>
+                          )}
+                          {clientInfo.departureDate && (
+                            <div>
+                              <p className="text-xs text-stone-400 uppercase tracking-wide">Departure</p>
+                              <p className="text-xs font-semibold text-stone-700">{formatDate(clientInfo.departureDate)}</p>
+                            </div>
+                          )}
+                          {clientInfo.pax >= 1 && (
+                            <div>
+                              <p className="text-xs text-stone-400 uppercase tracking-wide">Guests</p>
+                              <p className="text-xs font-semibold text-stone-700">{clientInfo.pax} pax</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       {/* Items Table */}
                       <div className="border border-stone-200 rounded-md overflow-hidden mb-4 page-break-avoid">
                         <table className="w-full">
@@ -453,123 +592,174 @@ const InvoiceGenerator = () => {
                                   {item.description || '—'}
                                   <span className="sm:hidden block text-xs text-stone-400 mt-0.5">{item.qty} {item.unit}</span>
                                 </td>
-                                <td className="py-2.5 px-4 text-right text-stone-600 text-sm">
-                                  {formatUnitPrice(item.price)}
-                                </td>
+                                <td className="py-2.5 px-4 text-right text-stone-600 text-sm">{formatCurrency(item.price)}</td>
                                 <td className="py-2.5 px-4 text-center text-stone-600 text-sm hidden sm:table-cell">
                                   {item.qty} <span className="text-xs text-stone-400 uppercase">{item.unit}</span>
                                 </td>
-                                <td className="py-2.5 px-4 text-right font-semibold text-stone-900 text-sm">
-                                  {formatCurrency(item.price * item.qty)}
-                                </td>
+                                <td className="py-2.5 px-4 text-right font-semibold text-stone-900 text-sm">{formatCurrency(item.price * item.qty)}</td>
                               </tr>
                             ))}
                           </tbody>
                         </table>
                       </div>
 
-                      {/* Totals */}
-                      <div className="space-y-1.5 mb-5 page-break-avoid">
-                        <div className="bg-stone-50 border border-stone-200 rounded-md py-2.5 px-4 flex justify-between items-center">
-                          <span className="font-semibold text-stone-700 uppercase tracking-wide text-xs">Subtotal</span>
-                          <span className="text-sm font-bold text-stone-900">{formatCurrency(totals.subtotal)}</span>
-                        </div>
-                        <div className="border border-stone-200 rounded-md py-2.5 px-4 flex justify-between items-center">
-                          <span className="text-stone-600 text-sm">VAT <span className="font-medium">({additionalCosts.tax}%)</span></span>
-                          <span className="text-sm font-semibold text-emerald-700">{formatCurrency(totals.taxAmount)}</span>
-                        </div>
-                        <div className="border border-stone-200 rounded-md py-2.5 px-4 flex justify-between items-center">
-                          <span className="text-stone-600 text-sm">Company Share <span className="font-medium">({additionalCosts.companyShare}%)</span></span>
-                          <span className="text-sm font-semibold text-emerald-700">{formatCurrency(totals.companyShareAmount)}</span>
-                        </div>
+                      {/* Totals — receipt shows a simplified version */}
+                      <div className="space-y-1.5 mb-4 page-break-avoid">
+                        {!isReceipt && (
+                          <>
+                            <div className="bg-stone-50 border border-stone-200 rounded-md py-2.5 px-4 flex justify-between items-center">
+                              <span className="font-semibold text-stone-700 uppercase tracking-wide text-xs">Subtotal</span>
+                              <span className="text-sm font-bold text-stone-900">{formatCurrency(totals.subtotal)}</span>
+                            </div>
+                            <div className="border border-stone-200 rounded-md py-2.5 px-4 flex justify-between items-center">
+                              <span className="text-stone-600 text-sm">VAT <span className="font-medium">({additionalCosts.tax}%)</span></span>
+                              <span className="text-sm font-semibold text-emerald-700">{formatCurrency(totals.taxAmount)}</span>
+                            </div>
+                            <div className="border border-stone-200 rounded-md py-2.5 px-4 flex justify-between items-center">
+                              <span className="text-stone-600 text-sm">Company Share <span className="font-medium">({additionalCosts.companyShare}%)</span></span>
+                              <span className="text-sm font-semibold text-emerald-700">{formatCurrency(totals.companyShareAmount)}</span>
+                            </div>
+                          </>
+                        )}
+
+                        {/* Grand Total */}
                         <div className="bg-gradient-to-r from-emerald-800 to-teal-700 rounded-md py-3 px-4 flex justify-between items-center shadow-md">
                           <span className="font-semibold text-white text-sm uppercase tracking-wide">Total Amount</span>
                           <span className="text-lg font-bold text-amber-300">{formatCurrency(totals.total)}</span>
                         </div>
+
+                        {/* Deposit & Balance — invoice and receipt */}
+                        {(isInvoice || isReceipt) && documentDetails.depositPaid > 0 && (
+                          <>
+                            <div className="border border-stone-200 rounded-md py-2.5 px-4 flex justify-between items-center">
+                              <span className="text-stone-600 text-sm">
+                                {isReceipt ? 'Amount Received' : 'Deposit Paid'}
+                                {isReceipt && documentDetails.paymentMethod && (
+                                  <span className="ml-2 text-xs bg-stone-100 text-stone-500 px-1.5 py-0.5 rounded">
+                                    {paymentMethodOptions.find(o => o.value === documentDetails.paymentMethod)?.label}
+                                  </span>
+                                )}
+                              </span>
+                              <span className="text-sm font-semibold text-stone-700">− {formatCurrency(documentDetails.depositPaid)}</span>
+                            </div>
+                            <div className={`rounded-md py-3 px-4 flex justify-between items-center border-2 ${totals.balanceDue === 0 ? 'bg-emerald-50 border-emerald-400' : 'bg-amber-50 border-amber-400'}`}>
+                              <div className="flex items-center gap-2">
+                                {totals.balanceDue === 0 && <CheckCircle className="w-4 h-4 text-emerald-600" />}
+                                <span className={`text-sm font-bold uppercase tracking-wide ${totals.balanceDue === 0 ? 'text-emerald-700' : 'text-amber-700'}`}>
+                                  {totals.balanceDue === 0 ? 'Fully Paid' : 'Balance Due'}
+                                </span>
+                              </div>
+                              <span className={`text-base font-bold ${totals.balanceDue === 0 ? 'text-emerald-700' : 'text-amber-700'}`}>
+                                {totals.balanceDue === 0 ? '✓ PAID' : formatCurrency(totals.balanceDue)}
+                              </span>
+                            </div>
+                          </>
+                        )}
                       </div>
 
                       {/* Exchange rate note when USD selected */}
                       {currency === 'USD' && (
                         <div className="mb-4 bg-amber-50 border border-amber-200 rounded-md px-4 py-2.5 text-xs text-amber-800 font-medium">
-                          Converted at 1 USD = {exchangeRate.toLocaleString()} UGX. Rates are subject to change without notice.
+                          💱 Converted at 1 USD = {exchangeRate.toLocaleString()} UGX. Rates are subject to change without notice.
                         </div>
                       )}
 
-                      {/* Payment Details */}
-                      <div className="mb-4 page-break-avoid">
-                        <div className="border border-emerald-600 rounded-md overflow-hidden">
-                          <div className="bg-emerald-800 px-4 py-2.5 flex items-center gap-2">
-                            <CreditCard className="w-3.5 h-3.5 text-amber-400" />
-                            <h3 className="font-semibold text-white uppercase tracking-wider text-xs">Payment Details</h3>
-                          </div>
-                          <div className="p-4 grid sm:grid-cols-2 gap-4 bg-emerald-50/30">
-                            {/* Bank Transfer */}
-                            <div>
-                              <div className="flex items-center gap-1.5 mb-2 pb-1.5 border-b border-amber-400">
-                                <CreditCard className="w-3.5 h-3.5 text-emerald-700" />
-                                <h4 className="font-semibold text-stone-700 text-xs uppercase tracking-wide">Bank Transfer</h4>
-                              </div>
-                              <div className="space-y-1.5">
-                                {[
-                                  ['Account Name', paymentDetails.accountName],
-                                  ['Account Details', paymentDetails.accountDetails],
-                                  ['Bank', paymentDetails.bankName],
-                                  ['Branch', paymentDetails.branchName],
-                                  ['Street Name', paymentDetails.streetNameOfBank],
-                                  ['Swift Code', paymentDetails.swiftCode],
-                                  ['Bank Code', paymentDetails.bankCode],
-                                  ['Branch Code', paymentDetails.branchCode],
-                                ].map(([label, value]) => (
-                                  <div key={label} className="flex justify-between items-start gap-2">
-                                    <span className="text-xs text-stone-400 font-medium shrink-0 w-24">{label}</span>
-                                    <span className="text-xs font-semibold text-stone-700 text-right">{value || '—'}</span>
-                                  </div>
-                                ))}
-                              </div>
+                      {/* Quotation validity note */}
+                      {isQuotation && documentDetails.validUntil && (
+                        <div className="mb-4 bg-stone-50 border border-stone-200 rounded-md px-4 py-2.5 text-xs text-stone-600">
+                          ⏳ This quotation is valid until <strong>{formatDate(documentDetails.validUntil)}</strong>. Prices and availability are subject to change after this date.
+                        </div>
+                      )}
+
+                      {/* Payment Details — invoice and receipt only */}
+                      {(isInvoice || isReceipt) && (
+                        <div className="mb-4 page-break-avoid">
+                          <div className="border border-emerald-600 rounded-md overflow-hidden">
+                            <div className="bg-emerald-800 px-4 py-2.5 flex items-center gap-2">
+                              <CreditCard className="w-3.5 h-3.5 text-amber-400" />
+                              <h3 className="font-semibold text-white uppercase tracking-wider text-xs">Payment Details</h3>
                             </div>
-                            {/* Mobile Money */}
-                            <div>
-                              <div className="flex items-center gap-1.5 mb-2 pb-1.5 border-b border-amber-400">
-                                <Smartphone className="w-3.5 h-3.5 text-emerald-700" />
-                                <h4 className="font-semibold text-stone-700 text-xs uppercase tracking-wide">Mobile Money</h4>
+                            <div className="p-4 grid sm:grid-cols-2 gap-4 bg-emerald-50/30">
+                              <div>
+                                <div className="flex items-center gap-1.5 mb-2 pb-1.5 border-b border-amber-400">
+                                  <CreditCard className="w-3.5 h-3.5 text-emerald-700" />
+                                  <h4 className="font-semibold text-stone-700 text-xs uppercase tracking-wide">Bank Transfer</h4>
+                                </div>
+                                <div className="space-y-1.5">
+                                  {[
+                                    ['Account Name', paymentDetails.accountName],
+                                    ['Account Details', paymentDetails.accountDetails],
+                                    ['Bank', paymentDetails.bankName],
+                                    ['Branch', paymentDetails.branchName],
+                                    ['Street Name', paymentDetails.streetNameOfBank],
+                                    ['Swift Code', paymentDetails.swiftCode],
+                                    ['Bank Code', paymentDetails.bankCode],
+                                    ['Branch Code', paymentDetails.branchCode],
+                                  ].map(([label, value]) => (
+                                    <div key={label} className="flex justify-between items-start gap-2">
+                                      <span className="text-xs text-stone-400 font-medium shrink-0 w-24">{label}</span>
+                                      <span className="text-xs font-semibold text-stone-700 text-right">{value || '—'}</span>
+                                    </div>
+                                  ))}
+                                </div>
                               </div>
-                              <div className="space-y-1.5">
-                                {[
-                                  ['Provider', paymentDetails.mobileProvider],
-                                  ['Number', paymentDetails.mobileMoney],
-                                  ['Name', paymentDetails.mobileMoneyName],
-                                ].map(([label, value]) => (
-                                  <div key={label} className="flex justify-between items-start gap-2">
-                                    <span className="text-xs text-stone-400 font-medium shrink-0 w-24">{label}</span>
-                                    <span className="text-xs font-semibold text-stone-700 text-right">{value || '—'}</span>
-                                  </div>
-                                ))}
+                              <div>
+                                <div className="flex items-center gap-1.5 mb-2 pb-1.5 border-b border-amber-400">
+                                  <Smartphone className="w-3.5 h-3.5 text-emerald-700" />
+                                  <h4 className="font-semibold text-stone-700 text-xs uppercase tracking-wide">Mobile Money</h4>
+                                </div>
+                                <div className="space-y-1.5">
+                                  {[
+                                    ['Provider', paymentDetails.mobileProvider],
+                                    ['Number', paymentDetails.mobileMoney],
+                                    ['Name', paymentDetails.mobileMoneyName],
+                                  ].map(([label, value]) => (
+                                    <div key={label} className="flex justify-between items-start gap-2">
+                                      <span className="text-xs text-stone-400 font-medium shrink-0 w-24">{label}</span>
+                                      <span className="text-xs font-semibold text-stone-700 text-right">{value || '—'}</span>
+                                    </div>
+                                  ))}
+                                </div>
                               </div>
                             </div>
                           </div>
                         </div>
-                      </div>
+                      )}
 
-                      {/* Policies */}
-                      <div className="space-y-2 mb-5">
-                        {[['Payment Policy', 'payment'], ['Cancellation Policy', 'cancellation'], ['Rate Policy', 'rate']].map(([title, key]) => (
-                          <div key={key} className="border border-stone-200 rounded-md p-3 bg-stone-50 page-break-avoid">
-                            <h3 className="font-semibold text-stone-800 mb-1.5 uppercase tracking-wide text-xs pb-1.5 border-b border-amber-400">{title}</h3>
-                            <p className="text-xs text-stone-600 leading-relaxed">{policies[key]}</p>
-                          </div>
-                        ))}
-                      </div>
+                      {/* Policies — quotation and invoice only (not receipt) */}
+                      {(isQuotation || isInvoice) && (
+                        <div className="space-y-2 mb-4">
+                          {[['Payment Policy', 'payment'], ['Cancellation Policy', 'cancellation'], ['Rate Policy', 'rate']].map(([title, key]) => (
+                            <div key={key} className="border border-stone-200 rounded-md p-3 bg-stone-50 page-break-avoid">
+                              <h3 className="font-semibold text-stone-800 mb-1.5 uppercase tracking-wide text-xs pb-1.5 border-b border-amber-400">{title}</h3>
+                              <p className="text-xs text-stone-600 leading-relaxed">{policies[key]}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
 
                       {/* Signature */}
                       <div className="border-t border-stone-200 pt-3 page-break-avoid">
-                        <div className="text-right">
-                          <p className="font-bold text-stone-900 text-sm">PAUL EDRINE BASULE</p>
-                          <p className="text-xs text-stone-500 uppercase tracking-wide">Director</p>
+                        <div className="flex items-end justify-between">
+                          {/* Convert to Invoice button — quotation only, hidden on print */}
+                          {isQuotation && (
+                            <button onClick={convertToInvoice}
+                              className="print:hidden flex items-center gap-2 px-3 py-2 bg-emerald-700 text-white rounded-md hover:bg-emerald-800 transition-all text-xs font-semibold">
+                              <ArrowRight className="w-3.5 h-3.5" /> Convert to Invoice
+                            </button>
+                          )}
+                          {!isQuotation && <div />}
+                          <div className="text-right">
+                            <p className="font-bold text-stone-900 text-sm">PAUL EDRINE BASULE</p>
+                            <p className="text-xs text-stone-500 uppercase tracking-wide">Director</p>
+                          </div>
                         </div>
                       </div>
+
                     </div>
                   </div>
                 )}
+
               </div>
             </div>
           </div>
