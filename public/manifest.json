@@ -1,6 +1,6 @@
 {
-  "short_name": "Galene Document Generator",
-  "name": "Create React App Sample",
+  "short_name": "InvoiceFlow MVP",
+  "name": "InvoiceFlow MVP - Quote to Payment Workflow",
   "icons": [
     {
       "src": "galene-logo.png",
@@ -20,6 +20,6 @@
   ],
   "start_url": ".",
   "display": "standalone",
-  "theme_color": "#000000",
+  "theme_color": "#052e16",
   "background_color": "#ffffff"
 }
