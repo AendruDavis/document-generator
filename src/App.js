@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Download, Plus, Trash2, Building2, RefreshCw, CreditCard, Smartphone, ArrowRight, CheckCircle } from 'lucide-react';
+import RichTextEditor, { normalizeRichText } from './components/RichTextEditor';
 
 const InvoiceGenerator = () => {
   const [documentType, setDocumentType] = useState('quotation');
@@ -63,7 +64,7 @@ const InvoiceGenerator = () => {
     mobileProvider: 'MTN MoMo'
   });
 
-  const [policies, setPolicies] = useState({
+  const [policies] = useState({
     payment: 'A payment of 100% on given permits is required on confirmation of your booking. A 50% deposit on reservation of the car rental and guide is also required on confirmation.',
     cancellation: 'Cancelled bookings forfeit 30% deposit if cancelled 60 days of arrival. 50% of the total booking will be charged for cancellation between 59 and 30 days before the arrival date.',
     rate: 'All rates are in US DOLLARS and a separate table of the government taxes and services charge but are subject to change without notice.'
@@ -71,8 +72,8 @@ const InvoiceGenerator = () => {
 
   const [letterContent, setLetterContent] = useState({
     subject: '',
-    body: '',
-    closing: 'Sincerely,\n\nPaul Edrine Basule\nDirector'
+    body: '<p>Write your letter here.</p>',
+    closing: '<p>Sincerely,</p><p>Paul Edrine Basule<br />Director</p>'
   });
 
   // ── Convert quotation → invoice, carrying all data forward
@@ -284,15 +285,23 @@ const InvoiceGenerator = () => {
               {isLetter && (
                 <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-4">
                   <label className={labelClass}>Letter Content</label>
-                  <div className="space-y-2">
+                  <div className="space-y-4">
                     <input type="text" placeholder="Subject" value={letterContent.subject}
                       onChange={(e) => setLetterContent({ ...letterContent, subject: e.target.value })} className={inputClass} />
-                    <textarea placeholder="Letter Body" value={letterContent.body}
-                      onChange={(e) => setLetterContent({ ...letterContent, body: e.target.value })}
-                      rows={8} className={inputClass} />
-                    <textarea placeholder="Closing" value={letterContent.closing}
-                      onChange={(e) => setLetterContent({ ...letterContent, closing: e.target.value })}
-                      rows={4} className={inputClass} />
+                    <RichTextEditor
+                      label="Body"
+                      value={letterContent.body}
+                      onChange={(value) => setLetterContent({ ...letterContent, body: value })}
+                      placeholder="Write the main body of the letter here..."
+                      minHeight="280px"
+                    />
+                    <RichTextEditor
+                      label="Closing"
+                      value={letterContent.closing}
+                      onChange={(value) => setLetterContent({ ...letterContent, closing: value })}
+                      placeholder="Add your sign-off, signature, and title here..."
+                      minHeight="180px"
+                    />
                   </div>
                 </div>
               )}
@@ -472,22 +481,30 @@ const InvoiceGenerator = () => {
                         </div>
                       </div>
                       <div className="mt-1 text-xs text-stone-600">
+                        <p>{companyInfo.phone}</p>
                         <p>{companyInfo.email}</p>
                         <p>{companyInfo.website}</p>
-                        <p>{companyInfo.phone}</p>
+
                       </div>
                     </div>
                     <p className="text-xs text-stone-500 mb-5">{formatDate(documentDetails.date)}</p>
                     <div className="mb-5">
                       <p className="font-semibold text-stone-900 text-sm">{clientInfo.name || 'Dear Guest,'}</p>
-                      {clientInfo.email && <p className="text-xs text-stone-500">{clientInfo.email}</p>}
                       {clientInfo.phone && <p className="text-xs text-stone-500">{clientInfo.phone}</p>}
+                      {clientInfo.email && <p className="text-xs text-stone-500">{clientInfo.email}</p>}
+
                     </div>
                     <div className="mb-5 pb-3 border-b border-stone-200">
                       <p className="font-semibold text-stone-900 text-sm"><span className="text-stone-500 font-normal">Re: </span>{letterContent.subject}</p>
                     </div>
-                    <div className="mb-10 whitespace-pre-wrap text-stone-700 leading-relaxed text-sm">{letterContent.body}</div>
-                    <div className="whitespace-pre-wrap text-stone-700 leading-relaxed text-sm">{letterContent.closing}</div>
+                    <div
+                      className="rich-text-content mb-10 text-stone-700 leading-relaxed text-sm"
+                      dangerouslySetInnerHTML={{ __html: normalizeRichText(letterContent.body) || '<p>Write your letter here.</p>' }}
+                    />
+                    <div
+                      className="rich-text-content text-stone-700 leading-relaxed text-sm"
+                      dangerouslySetInnerHTML={{ __html: normalizeRichText(letterContent.closing) }}
+                    />
                   </div>
                 )}
 
@@ -500,7 +517,7 @@ const InvoiceGenerator = () => {
                         <div className="flex items-center gap-3 flex-1">
                           <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full border border-amber-400 bg-white/10 flex-shrink-0 overflow-hidden flex items-center justify-center">
                             <img src="/galene.png" alt="Logo" className="w-full h-full object-cover "
-                            onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'block'; }} />
+                              onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'block'; }} />
                             <span className="text-amber-300 font-extrabold text-lg hidden w-full h-full items-center justify-center">G</span>
                           </div>
                           <div>
@@ -767,6 +784,48 @@ const InvoiceGenerator = () => {
       </div>
 
       <style>{`
+        .rich-text-editor:empty:before {
+          content: attr(data-placeholder);
+          color: #94a3b8;
+        }
+        .rich-text-content p {
+          margin: 0 0 0.9rem;
+        }
+        .rich-text-content p:last-child {
+          margin-bottom: 0;
+        }
+        .rich-text-content h1,
+        .rich-text-content h2,
+        .rich-text-content h3 {
+          color: #1c1917;
+          font-weight: 700;
+          line-height: 1.25;
+          margin: 1.2rem 0 0.75rem;
+        }
+        .rich-text-content h1 {
+          font-size: 1.5rem;
+        }
+        .rich-text-content h2 {
+          font-size: 1.25rem;
+        }
+        .rich-text-content h3 {
+          font-size: 1.1rem;
+        }
+        .rich-text-content ul,
+        .rich-text-content ol {
+          margin: 0.9rem 0 0.9rem 1.5rem;
+          padding-left: 0.5rem;
+        }
+        .rich-text-content ul {
+          list-style: disc;
+        }
+        .rich-text-content ol {
+          list-style: decimal;
+        }
+        .rich-text-content a {
+          color: #047857;
+          text-decoration: underline;
+        }
         @media print {
           body { margin: 0; padding: 0; background: white; }
           @page { margin: 0.5cm; size: A4; }
@@ -775,7 +834,7 @@ const InvoiceGenerator = () => {
           html, body { height: auto; overflow: visible; }
         }
         @media (max-width: 640px) {
-          input, textarea, button { font-size: 16px !important; }
+          input, textarea, button, .rich-text-editor { font-size: 16px !important; }
         }
       `}</style>
     </div>
