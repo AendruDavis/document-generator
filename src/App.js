@@ -11,9 +11,10 @@ const InvoiceGenerator = () => {
   const [rateLastUpdated, setRateLastUpdated] = useState(null);
 
   const [companyInfo, setCompanyInfo] = useState({
-    name: 'GALËNE HOLIDAYS AFRICA',
+    name: 'GALËNE HOLIDAYS AFRICA LIMITED',
     tagline: 'CRAFTING UNIQUE SAFARIS',
-    phone: '+256 701606674',
+    phone: '+256 701606674 / +256 774 184060',
+    po_box: 'P.O BOX 184613, Kampala, Gpo',
     email: 'galeneholidaysafrica@gmail.com',
     website: 'www.galeneholidaysafrica.com',
     address: 'Kampala, Uganda'
@@ -481,7 +482,8 @@ const InvoiceGenerator = () => {
                         </div>
                       </div>
                       <div className="mt-1 text-xs text-stone-600">
-                        <p>{companyInfo.phone}</p>
+                        <p>{companyInfo.po_box}</p>
+                        <p>{companyInfo.phone}</p>                        
                         <p>{companyInfo.email}</p>
                         <p>{companyInfo.website}</p>
 
@@ -524,8 +526,9 @@ const InvoiceGenerator = () => {
                             <h1 className="text-lg sm:text-xl font-bold tracking-tight leading-tight">{companyInfo.name}</h1>
                             <p className="text-xs uppercase tracking-widest text-emerald-200 font-semibold">{companyInfo.tagline}</p>
                             <div className="flex flex-wrap gap-x-3 text-xs text-emerald-100 mt-0.5">
-                              <span>{companyInfo.email}</span>
-                              <span>{companyInfo.phone}</span>
+                              <span>{companyInfo.po_box}</span>
+                              <span>{companyInfo.phone}</span>                              
+                              <span>{companyInfo.email}</span>                             
                               <span className="font-semibold">{companyInfo.website}</span>
                             </div>
                           </div>
