@@ -14,7 +14,7 @@ const InvoiceGenerator = () => {
     name: 'GALËNE HOLIDAYS AFRICA LIMITED',
     tagline: 'CRAFTING UNIQUE SAFARIS',
     phone: '+256 701606674 / +256 774 184060',
-    po_box: 'P.O BOX 184613, Kampala, Gpo',
+    po_box: 'P.O BOX 184613, KAMPALA, GPO',
     email: 'galeneholidaysafrica@gmail.com',
     website: 'www.galeneholidaysafrica.com',
     address: 'Kampala, Uganda'
