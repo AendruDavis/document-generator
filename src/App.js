@@ -223,6 +223,11 @@ const App = () => {
   const [policies, setPolicies] = useState(initialDraft.policies || DEFAULT_POLICIES);
   const [letterContent, setLetterContent] = useState(initialDraft.letterContent || DEFAULT_LETTER_CONTENT);
   const [activityMessage, setActivityMessage] = useState('');
+  const [activeWorkspaceTab, setActiveWorkspaceTab] = useState('workflow');
+  const [showSavedClients, setShowSavedClients] = useState(false);
+  const [showAdvancedPayment, setShowAdvancedPayment] = useState(false);
+  const [showTermsEditor, setShowTermsEditor] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
 
   const totals = calculateTotals(lineItems, additionalCosts);
   const isLetter = documentType === 'letter';
@@ -241,6 +246,26 @@ const App = () => {
       .filter((item) => item.documentType !== 'letter' && item.workflowStatus === 'paid')
       .reduce((sum, item) => sum + (item.totals?.total || 0), 0)
   };
+  const workspaceTabs = isLetter
+    ? [
+        { id: 'workflow', label: 'Setup' },
+        { id: 'client', label: 'Recipient' },
+        { id: 'content', label: 'Letter' },
+        { id: 'brand', label: 'Brand' }
+      ]
+    : [
+        { id: 'workflow', label: 'Setup' },
+        { id: 'client', label: 'Client' },
+        { id: 'content', label: 'Items' },
+        { id: 'payment', label: 'Payment' },
+        { id: 'brand', label: 'Brand' }
+      ];
+  const overviewBadges = [
+    { label: 'Document', value: documentType.charAt(0).toUpperCase() + documentType.slice(1) },
+    { label: 'Client', value: clientInfo.name || 'No client selected' },
+    { label: isLetter ? 'Status' : 'Total', value: isLetter ? workflowStatus : formatMoney(totals.total, currency, exchangeRate) },
+    { label: 'Saved', value: `${dashboardMetrics.documents} docs` }
+  ];
 
   useEffect(() => {
     saveStoredState({
@@ -290,6 +315,12 @@ const App = () => {
     const timer = window.setTimeout(() => setActivityMessage(''), 3000);
     return () => window.clearTimeout(timer);
   }, [activityMessage]);
+
+  useEffect(() => {
+    if (isLetter && activeWorkspaceTab === 'payment') {
+      setActiveWorkspaceTab('content');
+    }
+  }, [activeWorkspaceTab, isLetter]);
 
   useEffect(() => {
     if (typeof fetch !== 'function') {
@@ -586,26 +617,47 @@ const App = () => {
           </div>
         )}
 
-        <div className="print:hidden mb-6 grid gap-4 md:grid-cols-3">
-          <div className={metricCardClass}>
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-stone-500">Saved documents</p>
-            <p className="mt-2 text-3xl font-bold text-stone-900">{dashboardMetrics.documents}</p>
-            <p className="mt-1 text-sm text-stone-600">Local history you can reopen anytime.</p>
-          </div>
-          <div className={metricCardClass}>
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-stone-500">Open pipeline</p>
-            <p className="mt-2 text-3xl font-bold text-stone-900">{dashboardMetrics.openPipeline}</p>
-            <p className="mt-1 text-sm text-stone-600">Quotations and invoices not yet marked paid.</p>
-          </div>
-          <div className={metricCardClass}>
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-stone-500">Paid value</p>
-            <p className="mt-2 text-3xl font-bold text-stone-900">{formatMoney(dashboardMetrics.paidRevenue, 'UGX', exchangeRate)}</p>
-            <p className="mt-1 text-sm text-stone-600">Running total from documents marked paid.</p>
+        <div className={`${metricCardClass} print:hidden mb-6 overflow-hidden rounded-[28px] bg-[linear-gradient(135deg,_rgba(5,46,22,0.04)_0%,_rgba(251,191,36,0.12)_100%)]`}>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.24em] text-emerald-700">Workspace focus</p>
+              <h2 className="mt-1 text-2xl font-bold tracking-tight text-stone-900">Keep the editor simple. Reveal only what this document needs.</h2>
+              <p className="mt-2 max-w-2xl text-sm text-stone-600">
+                Setup, recipient, content, and payment are separated so users do not have to scan through every field at once.
+              </p>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+              {overviewBadges.map((item) => (
+                <div key={item.label} className="rounded-2xl border border-white/70 bg-white/90 px-4 py-3 shadow-sm">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-stone-500">{item.label}</p>
+                  <p className="mt-1 text-sm font-semibold text-stone-900">{item.value}</p>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 
         <div className="grid gap-6 lg:grid-cols-5">
-          <div className="print:hidden space-y-5 lg:col-span-2">
+          <div className="print:hidden space-y-4 lg:col-span-2">
+            <section className="rounded-[28px] border border-stone-200 bg-white p-3 shadow-sm">
+              <div className="flex flex-wrap gap-2">
+                {workspaceTabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setActiveWorkspaceTab(tab.id)}
+                    className={`rounded-2xl px-4 py-2 text-sm font-semibold transition-all ${
+                      activeWorkspaceTab === tab.id
+                        ? 'bg-emerald-900 text-white shadow-lg shadow-emerald-900/15'
+                        : 'bg-stone-100 text-stone-600 hover:bg-stone-200 hover:text-stone-900'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </section>
+
             <section className="rounded-3xl border border-stone-200 bg-white p-5 shadow-sm">
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -631,348 +683,371 @@ const App = () => {
               </div>
             </section>
 
-            <section className="rounded-3xl border border-stone-200 bg-white p-5 shadow-sm">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.24em] text-stone-500">Workflow</p>
-                  <h2 className="mt-1 text-lg font-bold text-stone-900">Current document</h2>
-                </div>
-                <span className={`rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-wide ${statusStyles[workflowStatus]}`}>
-                  {workflowStatus}
-                </span>
-              </div>
+            {activeWorkspaceTab === 'workflow' && (
+              <>
+                <section className="rounded-3xl border border-stone-200 bg-white p-5 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-[0.24em] text-stone-500">Workflow</p>
+                      <h2 className="mt-1 text-lg font-bold text-stone-900">Current document</h2>
+                    </div>
+                    <span className={`rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-wide ${statusStyles[workflowStatus]}`}>
+                      {workflowStatus}
+                    </span>
+                  </div>
 
-              <div className="mt-4 grid grid-cols-2 gap-2">
-                {DOCUMENT_TYPES.map((type) => (
-                  <button
-                    key={type}
-                    onClick={() => {
-                      setDocumentType(type);
-                      setWorkflowStatus(STATUS_BY_TYPE[type]);
-                    }}
-                    className={`rounded-2xl px-3 py-2 text-sm font-semibold transition-all ${
-                      documentType === type ? 'bg-emerald-800 text-white shadow-md' : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
-                    }`}
-                  >
-                    {type.charAt(0).toUpperCase() + type.slice(1)}
-                  </button>
-                ))}
-              </div>
+                  <div className="mt-4 grid grid-cols-2 gap-2">
+                    {DOCUMENT_TYPES.map((type) => (
+                      <button
+                        key={type}
+                        onClick={() => {
+                          setDocumentType(type);
+                          setWorkflowStatus(STATUS_BY_TYPE[type]);
+                        }}
+                        className={`rounded-2xl px-3 py-2 text-sm font-semibold transition-all ${
+                          documentType === type ? 'bg-emerald-800 text-white shadow-md' : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
+                        }`}
+                      >
+                        {type.charAt(0).toUpperCase() + type.slice(1)}
+                      </button>
+                    ))}
+                  </div>
 
-              <div className="mt-4 flex flex-wrap gap-2">
-                {availableStatuses.map((status) => (
-                  <button
-                    key={status}
-                    onClick={() => setWorkflowStatus(status)}
-                    className={`rounded-full border px-3 py-1.5 text-xs font-bold uppercase tracking-wide ${
-                      workflowStatus === status ? statusStyles[status] : 'border-stone-200 bg-white text-stone-500'
-                    }`}
-                  >
-                    {status}
-                  </button>
-                ))}
-              </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {availableStatuses.map((status) => (
+                      <button
+                        key={status}
+                        onClick={() => setWorkflowStatus(status)}
+                        className={`rounded-full border px-3 py-1.5 text-xs font-bold uppercase tracking-wide ${
+                          workflowStatus === status ? statusStyles[status] : 'border-stone-200 bg-white text-stone-500'
+                        }`}
+                      >
+                        {status}
+                      </button>
+                    ))}
+                  </div>
 
-              <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                <button onClick={() => saveCurrentDocument()} className={`${smallButtonClass} justify-center`}>
-                  <Save className="h-4 w-4" />
-                  Save document
-                </button>
-                {!isLetter && documentType === 'quotation' && (
-                  <button onClick={() => createFollowOnDocument('invoice')} className={`${smallButtonClass} justify-center`}>
-                    <Send className="h-4 w-4" />
-                    Create invoice
-                  </button>
-                )}
-                {!isLetter && documentType === 'invoice' && (
-                  <button onClick={() => createFollowOnDocument('receipt')} className={`${smallButtonClass} justify-center`}>
-                    <ClipboardCheck className="h-4 w-4" />
-                    Create receipt
-                  </button>
-                )}
-              </div>
-            </section>
+                  <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                    <button onClick={() => saveCurrentDocument()} className={`${smallButtonClass} justify-center`}>
+                      <Save className="h-4 w-4" />
+                      Save document
+                    </button>
+                    {!isLetter && documentType === 'quotation' && (
+                      <button onClick={() => createFollowOnDocument('invoice')} className={`${smallButtonClass} justify-center`}>
+                        <Send className="h-4 w-4" />
+                        Create invoice
+                      </button>
+                    )}
+                    {!isLetter && documentType === 'invoice' && (
+                      <button onClick={() => createFollowOnDocument('receipt')} className={`${smallButtonClass} justify-center`}>
+                        <ClipboardCheck className="h-4 w-4" />
+                        Create receipt
+                      </button>
+                    )}
+                  </div>
+                </section>
 
-            <section className="rounded-3xl border border-stone-200 bg-white p-5 shadow-sm">
-              <p className="text-xs font-bold uppercase tracking-[0.24em] text-stone-500">Business profile</p>
-              <h2 className="mt-1 text-lg font-bold text-stone-900">Plug-and-play setup</h2>
-              <div className="mt-4 space-y-3">
-                {[
-                  ['name', 'Business name'],
-                  ['tagline', 'Tagline'],
-                  ['phone', 'Phone number'],
-                  ['email', 'Email address'],
-                  ['website', 'Website or social link'],
-                  ['address', 'Business address']
-                ].map(([field, label]) => (
-                  <input
-                    key={field}
-                    type="text"
-                    placeholder={label}
-                    value={companyInfo[field]}
-                    onChange={(event) => setCompanyInfo({ ...companyInfo, [field]: event.target.value })}
-                    className={inputClass}
-                  />
-                ))}
-              </div>
-            </section>
+                <section className="rounded-3xl border border-stone-200 bg-white p-5 shadow-sm">
+                  <p className="text-xs font-bold uppercase tracking-[0.24em] text-stone-500">Document details</p>
+                  <h2 className="mt-1 text-lg font-bold text-stone-900">Dates and pricing</h2>
 
-            <section className="rounded-3xl border border-stone-200 bg-white p-5 shadow-sm">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.24em] text-stone-500">Client</p>
-                  <h2 className="mt-1 text-lg font-bold text-stone-900">Customer details</h2>
-                </div>
-                <button onClick={saveClient} className={smallButtonClass}>
-                  <UserPlus className="h-4 w-4" />
-                  Save client
-                </button>
-              </div>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <input
+                      type="text"
+                      placeholder="Document number"
+                      value={documentDetails.number}
+                      onChange={(event) => setDocumentDetails({ ...documentDetails, number: event.target.value })}
+                      className={inputClass}
+                    />
+                    <select value={currency} onChange={(event) => setCurrency(event.target.value)} className={inputClass}>
+                      <option value="UGX">UGX output</option>
+                      <option value="USD">USD output</option>
+                    </select>
+                    <div>
+                      <label className="mb-1 block text-xs font-bold uppercase tracking-[0.2em] text-stone-500">Issue date</label>
+                      <input
+                        type="date"
+                        value={documentDetails.issueDate}
+                        onChange={(event) => setDocumentDetails({ ...documentDetails, issueDate: event.target.value })}
+                        className={inputClass}
+                      />
+                    </div>
+                    {!isLetter && (
+                      <div>
+                        <label className="mb-1 block text-xs font-bold uppercase tracking-[0.2em] text-stone-500">Due date</label>
+                        <input
+                          type="date"
+                          value={documentDetails.dueDate}
+                          onChange={(event) => setDocumentDetails({ ...documentDetails, dueDate: event.target.value })}
+                          className={inputClass}
+                        />
+                      </div>
+                    )}
+                  </div>
 
-              <div className="mt-4 space-y-3">
-                {[
-                  ['name', 'Client name'],
-                  ['company', 'Client company'],
-                  ['phone', 'Client phone'],
-                  ['email', 'Client email']
-                ].map(([field, label]) => (
-                  <input
-                    key={field}
-                    type="text"
-                    placeholder={label}
-                    value={clientInfo[field]}
-                    onChange={(event) => setClientInfo({ ...clientInfo, [field]: event.target.value })}
-                    className={inputClass}
-                  />
-                ))}
-              </div>
-
-              <div className="mt-4">
-                <p className="text-xs font-bold uppercase tracking-[0.2em] text-stone-500">Saved clients</p>
-                <div className="mt-2 max-h-48 space-y-2 overflow-auto pr-1">
-                  {savedClients.length === 0 && <p className="text-sm text-stone-500">No saved clients yet.</p>}
-                  {savedClients.map((client) => (
-                    <div key={client.id} className="rounded-2xl border border-stone-200 bg-stone-50 p-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <button
-                          onClick={() => {
-                            setClientInfo({
-                              name: client.name || '',
-                              company: client.company || '',
-                              phone: client.phone || '',
-                              email: client.email || ''
-                            });
-                            setActivityMessage(`${client.name} loaded into the document.`);
-                          }}
-                          className="text-left"
-                        >
-                          <p className="font-semibold text-stone-800">{client.name}</p>
-                          <p className="text-sm text-stone-500">{client.company || client.email || client.phone || 'No extra details'}</p>
-                        </button>
-                        <button onClick={() => removeClient(client.id)} className="rounded-full p-2 text-stone-400 transition-all hover:bg-white hover:text-rose-600">
-                          <Trash2 className="h-4 w-4" />
+                  {!isLetter && (
+                    <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                      <div className="flex items-center justify-between gap-2">
+                        <div>
+                          <p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-800">USD / UGX rate</p>
+                          <p className="text-sm text-emerald-700">Unit prices are stored in UGX and displayed in the selected output currency.</p>
+                        </div>
+                        <button onClick={refreshExchangeRate} disabled={rateLoading} className="text-sm font-semibold text-emerald-800 disabled:opacity-50">
+                          <RefreshCw className={`h-4 w-4 ${rateLoading ? 'animate-spin' : ''}`} />
                         </button>
                       </div>
+                      <div className="mt-3 flex items-center gap-3">
+                        <input
+                          type="number"
+                          value={exchangeRate}
+                          onChange={(event) => setExchangeRate(parseFloat(event.target.value) || 0)}
+                          className="w-32 rounded-xl border border-emerald-300 bg-white px-3 py-2 text-sm font-bold text-emerald-900 focus:border-emerald-500 focus:outline-none"
+                        />
+                        <span className="text-sm text-emerald-800">UGX per 1 USD</span>
+                      </div>
+                      {rateLastUpdated && <p className="mt-2 text-xs text-emerald-700">Last updated at {rateLastUpdated}</p>}
+                      {rateError && <p className="mt-2 text-xs text-rose-600">{rateError}</p>}
                     </div>
+                  )}
+                </section>
+              </>
+            )}
+
+            {activeWorkspaceTab === 'brand' && (
+              <section className="rounded-3xl border border-stone-200 bg-white p-5 shadow-sm">
+                <p className="text-xs font-bold uppercase tracking-[0.24em] text-stone-500">Business profile</p>
+                <h2 className="mt-1 text-lg font-bold text-stone-900">Plug-and-play setup</h2>
+                <p className="mt-2 text-sm text-stone-600">Only edit this when your brand identity or contact details change.</p>
+                <div className="mt-4 space-y-3">
+                  {[
+                    ['name', 'Business name'],
+                    ['tagline', 'Tagline'],
+                    ['phone', 'Phone number'],
+                    ['email', 'Email address'],
+                    ['website', 'Website or social link'],
+                    ['address', 'Business address']
+                  ].map(([field, label]) => (
+                    <input
+                      key={field}
+                      type="text"
+                      placeholder={label}
+                      value={companyInfo[field]}
+                      onChange={(event) => setCompanyInfo({ ...companyInfo, [field]: event.target.value })}
+                      className={inputClass}
+                    />
                   ))}
                 </div>
-              </div>
-            </section>
+              </section>
+            )}
 
-            <section className="rounded-3xl border border-stone-200 bg-white p-5 shadow-sm">
-              <p className="text-xs font-bold uppercase tracking-[0.24em] text-stone-500">Document details</p>
-              <h2 className="mt-1 text-lg font-bold text-stone-900">Dates and pricing</h2>
-
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <input
-                  type="text"
-                  placeholder="Document number"
-                  value={documentDetails.number}
-                  onChange={(event) => setDocumentDetails({ ...documentDetails, number: event.target.value })}
-                  className={inputClass}
-                />
-                <select value={currency} onChange={(event) => setCurrency(event.target.value)} className={inputClass}>
-                  <option value="UGX">UGX output</option>
-                  <option value="USD">USD output</option>
-                </select>
-                <div>
-                  <label className="mb-1 block text-xs font-bold uppercase tracking-[0.2em] text-stone-500">Issue date</label>
-                  <input
-                    type="date"
-                    value={documentDetails.issueDate}
-                    onChange={(event) => setDocumentDetails({ ...documentDetails, issueDate: event.target.value })}
-                    className={inputClass}
-                  />
-                </div>
-                {!isLetter && (
+            {activeWorkspaceTab === 'client' && (
+              <section className="rounded-3xl border border-stone-200 bg-white p-5 shadow-sm">
+                <div className="flex items-center justify-between gap-3">
                   <div>
-                    <label className="mb-1 block text-xs font-bold uppercase tracking-[0.2em] text-stone-500">Due date</label>
+                    <p className="text-xs font-bold uppercase tracking-[0.24em] text-stone-500">Client</p>
+                    <h2 className="mt-1 text-lg font-bold text-stone-900">Customer details</h2>
+                  </div>
+                  <button onClick={saveClient} className={smallButtonClass}>
+                    <UserPlus className="h-4 w-4" />
+                    Save client
+                  </button>
+                </div>
+
+                <div className="mt-4 space-y-3">
+                  {[
+                    ['name', 'Client name'],
+                    ['company', 'Client company'],
+                    ['phone', 'Client phone'],
+                    ['email', 'Client email']
+                  ].map(([field, label]) => (
                     <input
-                      type="date"
-                      value={documentDetails.dueDate}
-                      onChange={(event) => setDocumentDetails({ ...documentDetails, dueDate: event.target.value })}
+                      key={field}
+                      type="text"
+                      placeholder={label}
+                      value={clientInfo[field]}
+                      onChange={(event) => setClientInfo({ ...clientInfo, [field]: event.target.value })}
+                      className={inputClass}
+                    />
+                  ))}
+                </div>
+
+                <div className="mt-4 rounded-2xl border border-stone-200 bg-stone-50 p-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowSavedClients(!showSavedClients)}
+                    className="flex w-full items-center justify-between text-left text-sm font-semibold text-stone-700"
+                  >
+                    <span>Saved clients</span>
+                    <span className="text-xs text-stone-500">{showSavedClients ? 'Hide' : `Show ${savedClients.length}`}</span>
+                  </button>
+
+                  {showSavedClients && (
+                    <div className="mt-3 max-h-56 space-y-2 overflow-auto pr-1">
+                      {savedClients.length === 0 && <p className="text-sm text-stone-500">No saved clients yet.</p>}
+                      {savedClients.map((client) => (
+                        <div key={client.id} className="rounded-2xl border border-stone-200 bg-white p-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <button
+                              onClick={() => {
+                                setClientInfo({
+                                  name: client.name || '',
+                                  company: client.company || '',
+                                  phone: client.phone || '',
+                                  email: client.email || ''
+                                });
+                                setActivityMessage(`${client.name} loaded into the document.`);
+                              }}
+                              className="text-left"
+                            >
+                              <p className="font-semibold text-stone-800">{client.name}</p>
+                              <p className="text-sm text-stone-500">{client.company || client.email || client.phone || 'No extra details'}</p>
+                            </button>
+                            <button onClick={() => removeClient(client.id)} className="rounded-full p-2 text-stone-400 transition-all hover:bg-stone-50 hover:text-rose-600">
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </section>
+            )}
+
+            {activeWorkspaceTab === 'content' &&
+              (isLetter ? (
+                <section className="rounded-3xl border border-stone-200 bg-white p-5 shadow-sm">
+                  <p className="text-xs font-bold uppercase tracking-[0.24em] text-stone-500">Letter content</p>
+                  <h2 className="mt-1 text-lg font-bold text-stone-900">Message</h2>
+                  <p className="mt-2 text-sm text-stone-600">Keep the editor focused on the subject, message, and sign-off.</p>
+                  <div className="mt-4 space-y-3">
+                    <input
+                      type="text"
+                      placeholder="Subject"
+                      value={letterContent.subject}
+                      onChange={(event) => setLetterContent({ ...letterContent, subject: event.target.value })}
+                      className={inputClass}
+                    />
+                    <textarea
+                      rows={10}
+                      placeholder="Letter body"
+                      value={letterContent.body}
+                      onChange={(event) => setLetterContent({ ...letterContent, body: event.target.value })}
+                      className={inputClass}
+                    />
+                    <textarea
+                      rows={4}
+                      placeholder="Closing"
+                      value={letterContent.closing}
+                      onChange={(event) => setLetterContent({ ...letterContent, closing: event.target.value })}
                       className={inputClass}
                     />
                   </div>
-                )}
-              </div>
-
-              {!isLetter && (
-                <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-                  <div className="flex items-center justify-between gap-2">
-                    <div>
-                      <p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-800">USD / UGX rate</p>
-                      <p className="text-sm text-emerald-700">Unit prices are stored in UGX and displayed in the selected output currency.</p>
+                </section>
+              ) : (
+                <>
+                  <section className="rounded-3xl border border-stone-200 bg-white p-5 shadow-sm">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-[0.24em] text-stone-500">Services</p>
+                        <h2 className="mt-1 text-lg font-bold text-stone-900">Line items</h2>
+                      </div>
+                      <button onClick={() => setLineItems([...lineItems, createEmptyLineItem()])} className={smallButtonClass}>
+                        <Plus className="h-4 w-4" />
+                        Add item
+                      </button>
                     </div>
-                    <button onClick={refreshExchangeRate} disabled={rateLoading} className="text-sm font-semibold text-emerald-800 disabled:opacity-50">
-                      <RefreshCw className={`h-4 w-4 ${rateLoading ? 'animate-spin' : ''}`} />
-                    </button>
-                  </div>
-                  <div className="mt-3 flex items-center gap-3">
-                    <input
-                      type="number"
-                      value={exchangeRate}
-                      onChange={(event) => setExchangeRate(parseFloat(event.target.value) || 0)}
-                      className="w-32 rounded-xl border border-emerald-300 bg-white px-3 py-2 text-sm font-bold text-emerald-900 focus:border-emerald-500 focus:outline-none"
-                    />
-                    <span className="text-sm text-emerald-800">UGX per 1 USD</span>
-                  </div>
-                  {rateLastUpdated && <p className="mt-2 text-xs text-emerald-700">Last updated at {rateLastUpdated}</p>}
-                  {rateError && <p className="mt-2 text-xs text-rose-600">{rateError}</p>}
-                </div>
-              )}
-            </section>
 
-            {isLetter ? (
-              <section className="rounded-3xl border border-stone-200 bg-white p-5 shadow-sm">
-                <p className="text-xs font-bold uppercase tracking-[0.24em] text-stone-500">Letter content</p>
-                <h2 className="mt-1 text-lg font-bold text-stone-900">Message</h2>
-                <div className="mt-4 space-y-3">
-                  <input
-                    type="text"
-                    placeholder="Subject"
-                    value={letterContent.subject}
-                    onChange={(event) => setLetterContent({ ...letterContent, subject: event.target.value })}
-                    className={inputClass}
-                  />
-                  <textarea
-                    rows={8}
-                    placeholder="Letter body"
-                    value={letterContent.body}
-                    onChange={(event) => setLetterContent({ ...letterContent, body: event.target.value })}
-                    className={inputClass}
-                  />
-                  <textarea
-                    rows={4}
-                    placeholder="Closing"
-                    value={letterContent.closing}
-                    onChange={(event) => setLetterContent({ ...letterContent, closing: event.target.value })}
-                    className={inputClass}
-                  />
-                </div>
-              </section>
-            ) : (
-              <>
-                <section className="rounded-3xl border border-stone-200 bg-white p-5 shadow-sm">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-xs font-bold uppercase tracking-[0.24em] text-stone-500">Services</p>
-                      <h2 className="mt-1 text-lg font-bold text-stone-900">Line items</h2>
-                    </div>
-                    <button onClick={() => setLineItems([...lineItems, createEmptyLineItem()])} className={smallButtonClass}>
-                      <Plus className="h-4 w-4" />
-                      Add item
-                    </button>
-                  </div>
-
-                  <div className="mt-4 space-y-3">
-                    {lineItems.map((item, index) => (
-                      <div key={`${item.description}-${index}`} className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
-                        <input
-                          type="text"
-                          placeholder="Description"
-                          value={item.description}
-                          onChange={(event) => updateLineItem(index, 'description', event.target.value)}
-                          className={inputClass}
-                        />
-                        <div className="mt-3 grid grid-cols-3 gap-2">
-                          <input
-                            type="number"
-                            placeholder={currency === 'USD' ? 'Unit price (USD)' : 'Unit price (UGX)'}
-                            value={getEditablePrice(item.price)}
-                            onChange={(event) => updateLineItem(index, 'price', event.target.value)}
-                            className={inputClass}
-                          />
-                          <input
-                            type="number"
-                            placeholder="Qty"
-                            value={item.qty}
-                            onChange={(event) => updateLineItem(index, 'qty', event.target.value)}
-                            className={inputClass}
-                          />
+                    <div className="mt-4 space-y-3">
+                      {lineItems.map((item, index) => (
+                        <div key={`${item.description}-${index}`} className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
                           <input
                             type="text"
-                            placeholder="Unit"
-                            value={item.unit}
-                            onChange={(event) => updateLineItem(index, 'unit', event.target.value)}
+                            placeholder="Description"
+                            value={item.description}
+                            onChange={(event) => updateLineItem(index, 'description', event.target.value)}
                             className={inputClass}
                           />
+                          <div className="mt-3 grid grid-cols-3 gap-2">
+                            <input
+                              type="number"
+                              placeholder={currency === 'USD' ? 'Unit price (USD)' : 'Unit price (UGX)'}
+                              value={getEditablePrice(item.price)}
+                              onChange={(event) => updateLineItem(index, 'price', event.target.value)}
+                              className={inputClass}
+                            />
+                            <input
+                              type="number"
+                              placeholder="Qty"
+                              value={item.qty}
+                              onChange={(event) => updateLineItem(index, 'qty', event.target.value)}
+                              className={inputClass}
+                            />
+                            <input
+                              type="text"
+                              placeholder="Unit"
+                              value={item.unit}
+                              onChange={(event) => updateLineItem(index, 'unit', event.target.value)}
+                              className={inputClass}
+                            />
+                          </div>
+                          <div className="mt-3 flex items-center justify-between text-sm">
+                            <span className="font-medium text-stone-600">Line total</span>
+                            <span className="font-bold text-stone-900">{formatMoney(item.price * item.qty, currency, exchangeRate)}</span>
+                          </div>
+                          {lineItems.length > 1 && (
+                            <button
+                              onClick={() => setLineItems(lineItems.filter((_, itemIndex) => itemIndex !== index))}
+                              className="mt-3 inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-rose-600 transition-all hover:bg-white"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              Remove
+                            </button>
+                          )}
                         </div>
-                        <div className="mt-3 flex items-center justify-between text-sm">
-                          <span className="font-medium text-stone-600">Line total</span>
-                          <span className="font-bold text-stone-900">{formatMoney(item.price * item.qty, currency, exchangeRate)}</span>
-                        </div>
-                        {lineItems.length > 1 && (
-                          <button
-                            onClick={() => setLineItems(lineItems.filter((_, itemIndex) => itemIndex !== index))}
-                            className="mt-3 inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-rose-600 transition-all hover:bg-white"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                            Remove
-                          </button>
-                        )}
+                      ))}
+                    </div>
+                  </section>
+
+                  <section className="rounded-3xl border border-stone-200 bg-white p-5 shadow-sm">
+                    <p className="text-xs font-bold uppercase tracking-[0.24em] text-stone-500">Pricing rules</p>
+                    <h2 className="mt-1 text-lg font-bold text-stone-900">Taxes and markup</h2>
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className="mb-1 block text-xs font-bold uppercase tracking-[0.2em] text-stone-500">Tax %</label>
+                        <input
+                          type="number"
+                          value={additionalCosts.tax}
+                          onChange={(event) => setAdditionalCosts({ ...additionalCosts, tax: parseFloat(event.target.value) || 0 })}
+                          className={inputClass}
+                        />
                       </div>
-                    ))}
-                  </div>
-                </section>
-
-                <section className="rounded-3xl border border-stone-200 bg-white p-5 shadow-sm">
-                  <p className="text-xs font-bold uppercase tracking-[0.24em] text-stone-500">Pricing rules</p>
-                  <h2 className="mt-1 text-lg font-bold text-stone-900">Taxes and markup</h2>
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                    <div>
-                      <label className="mb-1 block text-xs font-bold uppercase tracking-[0.2em] text-stone-500">Tax %</label>
-                      <input
-                        type="number"
-                        value={additionalCosts.tax}
-                        onChange={(event) => setAdditionalCosts({ ...additionalCosts, tax: parseFloat(event.target.value) || 0 })}
-                        className={inputClass}
-                      />
+                      <div>
+                        <label className="mb-1 block text-xs font-bold uppercase tracking-[0.2em] text-stone-500">Company share %</label>
+                        <input
+                          type="number"
+                          value={additionalCosts.companyShare}
+                          onChange={(event) => setAdditionalCosts({ ...additionalCosts, companyShare: parseFloat(event.target.value) || 0 })}
+                          className={inputClass}
+                        />
+                      </div>
                     </div>
-                    <div>
-                      <label className="mb-1 block text-xs font-bold uppercase tracking-[0.2em] text-stone-500">Company share %</label>
-                      <input
-                        type="number"
-                        value={additionalCosts.companyShare}
-                        onChange={(event) => setAdditionalCosts({ ...additionalCosts, companyShare: parseFloat(event.target.value) || 0 })}
-                        className={inputClass}
-                      />
-                    </div>
-                  </div>
-                </section>
+                  </section>
+                </>
+              ))}
 
+            {activeWorkspaceTab === 'payment' && !isLetter && (
+              <>
                 <section className="rounded-3xl border border-stone-200 bg-white p-5 shadow-sm">
                   <p className="text-xs font-bold uppercase tracking-[0.24em] text-stone-500">Payment setup</p>
                   <h2 className="mt-1 text-lg font-bold text-stone-900">Bank and mobile money</h2>
+                  <p className="mt-2 text-sm text-stone-600">Only the essentials are shown first. Expand the rest only if your client needs them.</p>
 
                   <div className="mt-4 space-y-3">
                     {[
                       ['accountName', 'Account name'],
                       ['accountNumber', 'Account number'],
-                      ['accountDetails', 'Account details'],
                       ['bankName', 'Bank name'],
-                      ['branchName', 'Branch name'],
-                      ['swiftCode', 'SWIFT / BIC'],
                       ['mobileProvider', 'Mobile money provider'],
                       ['mobileMoney', 'Mobile money number'],
                       ['mobileMoneyName', 'Mobile money registered name']
@@ -987,69 +1062,120 @@ const App = () => {
                       />
                     ))}
                   </div>
+
+                  <div className="mt-4 rounded-2xl border border-stone-200 bg-stone-50 p-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowAdvancedPayment(!showAdvancedPayment)}
+                      className="flex w-full items-center justify-between text-left text-sm font-semibold text-stone-700"
+                    >
+                      <span>Advanced bank details</span>
+                      <span className="text-xs text-stone-500">{showAdvancedPayment ? 'Hide' : 'Show more'}</span>
+                    </button>
+
+                    {showAdvancedPayment && (
+                      <div className="mt-3 space-y-3">
+                        {[
+                          ['accountDetails', 'Account details'],
+                          ['branchName', 'Branch name'],
+                          ['swiftCode', 'SWIFT / BIC']
+                        ].map(([field, label]) => (
+                          <input
+                            key={field}
+                            type="text"
+                            placeholder={label}
+                            value={paymentDetails[field]}
+                            onChange={(event) => setPaymentDetails({ ...paymentDetails, [field]: event.target.value })}
+                            className={inputClass}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </section>
 
                 <section className="rounded-3xl border border-stone-200 bg-white p-5 shadow-sm">
-                  <p className="text-xs font-bold uppercase tracking-[0.24em] text-stone-500">Default terms</p>
-                  <h2 className="mt-1 text-lg font-bold text-stone-900">Policies</h2>
-                  <div className="mt-4 space-y-3">
-                    {[
-                      ['payment', 'Payment policy'],
-                      ['cancellation', 'Cancellation policy'],
-                      ['rate', 'Rate policy']
-                    ].map(([field, label]) => (
-                      <textarea
-                        key={field}
-                        rows={3}
-                        placeholder={label}
-                        value={policies[field]}
-                        onChange={(event) => setPolicies({ ...policies, [field]: event.target.value })}
-                        className={inputClass}
-                      />
-                    ))}
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-[0.24em] text-stone-500">Terms</p>
+                      <h2 className="mt-1 text-lg font-bold text-stone-900">Policies</h2>
+                    </div>
+                    <button type="button" onClick={() => setShowTermsEditor(!showTermsEditor)} className={smallButtonClass}>
+                      {showTermsEditor ? 'Hide details' : 'Edit terms'}
+                    </button>
                   </div>
+
+                  <p className="mt-2 text-sm text-stone-600">Keep terms hidden until you actually need to customize them.</p>
+
+                  {showTermsEditor && (
+                    <div className="mt-4 space-y-3">
+                      {[
+                        ['payment', 'Payment policy'],
+                        ['cancellation', 'Cancellation policy'],
+                        ['rate', 'Rate policy']
+                      ].map(([field, label]) => (
+                        <textarea
+                          key={field}
+                          rows={3}
+                          placeholder={label}
+                          value={policies[field]}
+                          onChange={(event) => setPolicies({ ...policies, [field]: event.target.value })}
+                          className={inputClass}
+                        />
+                      ))}
+                    </div>
+                  )}
                 </section>
               </>
             )}
 
             <section className="rounded-3xl border border-stone-200 bg-white p-5 shadow-sm">
-              <div className="flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => setShowHistory(!showHistory)}
+                className="flex w-full items-center justify-between gap-3 text-left"
+              >
                 <div>
                   <p className="text-xs font-bold uppercase tracking-[0.24em] text-stone-500">Document history</p>
                   <h2 className="mt-1 text-lg font-bold text-stone-900">Saved records</h2>
                 </div>
-                <FolderOpen className="h-5 w-5 text-stone-400" />
-              </div>
+                <div className="flex items-center gap-2 text-stone-400">
+                  <FolderOpen className="h-5 w-5" />
+                  <span className="text-xs font-semibold uppercase tracking-wide text-stone-500">{showHistory ? 'Hide' : `Show ${savedDocuments.length}`}</span>
+                </div>
+              </button>
 
-              <div className="mt-4 max-h-96 space-y-3 overflow-auto pr-1">
-                {savedDocuments.length === 0 && <p className="text-sm text-stone-500">Save a document to start your local history.</p>}
-                {savedDocuments.map((documentRecord) => (
-                  <div key={documentRecord.id} className="rounded-2xl border border-stone-200 bg-stone-50 p-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <button onClick={() => loadDocument(documentRecord)} className="text-left">
-                        <div className="flex items-center gap-2">
-                          <p className="font-semibold text-stone-900">
-                            {documentRecord.documentType} #{documentRecord.documentDetails?.number || '-'}
+              {showHistory && (
+                <div className="mt-4 max-h-96 space-y-3 overflow-auto pr-1">
+                  {savedDocuments.length === 0 && <p className="text-sm text-stone-500">Save a document to start your local history.</p>}
+                  {savedDocuments.map((documentRecord) => (
+                    <div key={documentRecord.id} className="rounded-2xl border border-stone-200 bg-stone-50 p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <button onClick={() => loadDocument(documentRecord)} className="text-left">
+                          <div className="flex items-center gap-2">
+                            <p className="font-semibold text-stone-900">
+                              {documentRecord.documentType} #{documentRecord.documentDetails?.number || '-'}
+                            </p>
+                            <span className={`rounded-full border px-2 py-1 text-[11px] font-bold uppercase tracking-wide ${statusStyles[documentRecord.workflowStatus] || statusStyles.draft}`}>
+                              {documentRecord.workflowStatus}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-sm text-stone-500">
+                            {documentRecord.clientInfo?.name || 'No client'}
+                            {documentRecord.documentType !== 'letter'
+                              ? ` - ${formatMoney(documentRecord.totals?.total || 0, documentRecord.currency, documentRecord.exchangeRate)}`
+                              : ''}
                           </p>
-                          <span className={`rounded-full border px-2 py-1 text-[11px] font-bold uppercase tracking-wide ${statusStyles[documentRecord.workflowStatus] || statusStyles.draft}`}>
-                            {documentRecord.workflowStatus}
-                          </span>
-                        </div>
-                        <p className="mt-1 text-sm text-stone-500">
-                          {documentRecord.clientInfo?.name || 'No client'}
-                          {documentRecord.documentType !== 'letter'
-                            ? ` - ${formatMoney(documentRecord.totals?.total || 0, documentRecord.currency, documentRecord.exchangeRate)}`
-                            : ''}
-                        </p>
-                        <p className="mt-1 text-xs text-stone-400">Updated {formatHumanDate(documentRecord.updatedAt || documentRecord.createdAt)}</p>
-                      </button>
-                      <button onClick={() => deleteDocument(documentRecord.id)} className="rounded-full p-2 text-stone-400 transition-all hover:bg-white hover:text-rose-600">
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                          <p className="mt-1 text-xs text-stone-400">Updated {formatHumanDate(documentRecord.updatedAt || documentRecord.createdAt)}</p>
+                        </button>
+                        <button onClick={() => deleteDocument(documentRecord.id)} className="rounded-full p-2 text-stone-400 transition-all hover:bg-white hover:text-rose-600">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </section>
           </div>
 
