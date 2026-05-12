@@ -2,10 +2,23 @@ import React, { useState, useEffect } from 'react';
 import { Download, Plus, Trash2, Building2, RefreshCw, CreditCard, Smartphone, ArrowRight, CheckCircle } from 'lucide-react';
 import RichTextEditor, { normalizeRichText } from './components/RichTextEditor';
 
+const CURRENCY_OPTIONS = {
+  UGX: { buttonLabel: 'UGX', symbol: 'UGX', decimals: 0 },
+  USD: { buttonLabel: 'USD ($)', symbol: '$', decimals: 2 },
+  EUR: { buttonLabel: 'EUR (€)', symbol: '€', decimals: 2 },
+  GBP: { buttonLabel: 'GBP (£)', symbol: '£', decimals: 2 }
+};
+
+const DEFAULT_EXCHANGE_RATES = {
+  USD: 3700,
+  EUR: 4000,
+  GBP: 4700
+};
+
 const InvoiceGenerator = () => {
   const [documentType, setDocumentType] = useState('quotation');
   const [currency, setCurrency] = useState('UGX');
-  const [exchangeRate, setExchangeRate] = useState(3700);
+  const [exchangeRates, setExchangeRates] = useState(DEFAULT_EXCHANGE_RATES);
   const [rateLoading, setRateLoading] = useState(false);
   const [rateError, setRateError] = useState(null);
   const [rateLastUpdated, setRateLastUpdated] = useState(null);
@@ -68,7 +81,7 @@ const InvoiceGenerator = () => {
   const [policies] = useState({
     payment: 'A payment of 100% on given permits is required on confirmation of your booking. A 50% deposit on reservation of the car rental and guide is also required on confirmation.',
     cancellation: 'Cancelled bookings forfeit 30% deposit if cancelled 60 days of arrival. 50% of the total booking will be charged for cancellation between 59 and 30 days before the arrival date.',
-    rate: 'All rates are in US DOLLARS and a separate table of the government taxes and services charge but are subject to change without notice.'
+    rate: 'All rates are shown in the selected document currency. Government taxes and service charges may be listed separately and are subject to change without notice.'
   });
 
   const [letterContent, setLetterContent] = useState({
@@ -89,24 +102,28 @@ const InvoiceGenerator = () => {
     }));
   };
 
-  const fetchExchangeRate = async () => {
+  const fetchExchangeRates = async () => {
     setRateLoading(true);
     setRateError(null);
     try {
       const res = await fetch('https://open.er-api.com/v6/latest/USD');
       const data = await res.json();
-      if (data?.rates?.UGX) {
-        setExchangeRate(Math.round(data.rates.UGX));
+      if (data?.rates?.UGX && data?.rates?.EUR && data?.rates?.GBP) {
+        setExchangeRates({
+          USD: Math.round(data.rates.UGX),
+          EUR: Math.round(data.rates.UGX / data.rates.EUR),
+          GBP: Math.round(data.rates.UGX / data.rates.GBP)
+        });
         setRateLastUpdated(new Date().toLocaleTimeString());
       } else throw new Error('Invalid response');
     } catch {
-      setRateError('Could not fetch live rate');
+      setRateError('Could not fetch live rates');
     } finally {
       setRateLoading(false);
     }
   };
 
-  useEffect(() => { fetchExchangeRate(); }, []);
+  useEffect(() => { fetchExchangeRates(); }, []);
 
   const calculateTotal = () => {
     const subtotal = lineItems.reduce((sum, item) => sum + item.price * (item.qty || 1), 0);
@@ -117,10 +134,24 @@ const InvoiceGenerator = () => {
     return { subtotal, taxAmount, companyShareAmount, total, balanceDue };
   };
 
-  // Prices stored in UGX; USD derived by dividing by exchange rate
+  // Prices are stored in UGX; foreign currencies are derived from their UGX exchange rates.
   const formatCurrency = (ugxAmount) => {
+    const selectedCurrency = CURRENCY_OPTIONS[currency] || CURRENCY_OPTIONS.UGX;
     if (currency === 'UGX') return `UGX ${Math.round(ugxAmount).toLocaleString()}`;
-    return `$${(ugxAmount / exchangeRate).toFixed(2)}`;
+
+    const exchangeRate = exchangeRates[currency] || 1;
+    const convertedAmount = ugxAmount / exchangeRate;
+    return `${selectedCurrency.symbol}${convertedAmount.toLocaleString(undefined, {
+      minimumFractionDigits: selectedCurrency.decimals,
+      maximumFractionDigits: selectedCurrency.decimals
+    })}`;
+  };
+
+  const updateExchangeRate = (currencyCode, value) => {
+    setExchangeRates(prev => ({
+      ...prev,
+      [currencyCode]: parseFloat(value) || 0
+    }));
   };
 
   const addLineItem = () => setLineItems([...lineItems, { description: '', price: 0, qty: 1, unit: 'pax' }]);
@@ -202,29 +233,34 @@ const InvoiceGenerator = () => {
               {!isLetter && (
                 <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-4">
                   <label className={labelClass}>Currency</label>
-                  <div className="flex gap-2 mb-3">
-                    {['UGX', 'USD'].map((c) => (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
+                    {Object.entries(CURRENCY_OPTIONS).map(([c, option]) => (
                       <button key={c} onClick={() => setCurrency(c)}
                         className={`flex-1 px-3 py-2 rounded-md text-xs font-semibold transition-all ${currency === c
                           ? 'bg-amber-500 text-white shadow-md'
                           : 'bg-stone-100 text-stone-700 hover:bg-stone-200'}`}>
-                        {c === 'UGX' ? 'UGX' : 'USD ($)'}
+                        {option.buttonLabel}
                       </button>
                     ))}
                   </div>
                   <div className="bg-emerald-50 border border-emerald-200 rounded-md p-3">
                     <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-xs font-bold text-emerald-800 uppercase tracking-wide">Live USD/UGX Rate</span>
-                      <button onClick={fetchExchangeRate} disabled={rateLoading}
+                      <span className="text-xs font-bold text-emerald-800 uppercase tracking-wide">Live Foreign/UGX Rates</span>
+                      <button onClick={fetchExchangeRates} disabled={rateLoading}
                         className="flex items-center gap-1 text-xs text-emerald-700 hover:text-emerald-900 font-semibold disabled:opacity-50">
                         <RefreshCw className={`w-3 h-3 ${rateLoading ? 'animate-spin' : ''}`} /> Refresh
                       </button>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <input type="number" value={exchangeRate}
-                        onChange={(e) => setExchangeRate(parseFloat(e.target.value) || 0)}
-                        className="w-28 px-2 py-1 border border-emerald-300 rounded text-sm font-bold text-emerald-900 bg-white" />
-                      <span className="text-xs text-emerald-700">UGX per $1</span>
+                    <div className="space-y-2">
+                      {['USD', 'EUR', 'GBP'].map((currencyCode) => (
+                        <div key={currencyCode} className="flex items-center gap-2">
+                          <span className="w-10 text-xs font-bold text-emerald-800">{currencyCode}</span>
+                          <input type="number" value={exchangeRates[currencyCode]}
+                            onChange={(e) => updateExchangeRate(currencyCode, e.target.value)}
+                            className="w-28 px-2 py-1 border border-emerald-300 rounded text-sm font-bold text-emerald-900 bg-white" />
+                          <span className="text-xs text-emerald-700">UGX per {CURRENCY_OPTIONS[currencyCode].symbol}1</span>
+                        </div>
+                      ))}
                     </div>
                     {rateError && <p className="text-xs text-red-500 mt-1">{rateError} — editable above.</p>}
                     {rateLastUpdated && !rateError && <p className="text-xs text-emerald-600 mt-1">Updated at {rateLastUpdated}</p>}
@@ -349,7 +385,7 @@ const InvoiceGenerator = () => {
                     {/* Deposit Paid — invoice + receipt */}
                     {(isInvoice || isReceipt) && (
                       <div>
-                        <p className={labelClass}>Deposit / Amount Paid (UGX)</p>
+                        <p className={labelClass}>Deposit / Amount Paid (UGX Base)</p>
                         <input type="number" placeholder="0" value={documentDetails.depositPaid}
                           onChange={(e) => setDocumentDetails({ ...documentDetails, depositPaid: parseFloat(e.target.value) || 0 })}
                           className={inputClass} />
@@ -393,7 +429,7 @@ const InvoiceGenerator = () => {
                           onChange={(e) => updateLineItem(index, 'description', e.target.value)}
                           className="w-full px-2 py-1.5 border border-stone-300 rounded-md text-xs mb-2" />
                         <div className="grid grid-cols-3 gap-1.5">
-                          <input type="number" placeholder="Price (UGX)" value={item.price}
+                          <input type="number" placeholder="Price (UGX base)" value={item.price}
                             onChange={(e) => updateLineItem(index, 'price', e.target.value)}
                             className="px-2 py-1.5 border border-stone-300 rounded-md text-xs" />
                           <input type="number" placeholder="Qty" value={item.qty}
@@ -677,10 +713,10 @@ const InvoiceGenerator = () => {
                         )}
                       </div>
 
-                      {/* Exchange rate note when USD selected */}
-                      {currency === 'USD' && (
+                      {/* Exchange rate note when a foreign currency is selected */}
+                      {currency !== 'UGX' && (
                         <div className="mb-4 bg-amber-50 border border-amber-200 rounded-md px-4 py-2.5 text-xs text-amber-800 font-medium">
-                          💱 Converted at 1 USD = {exchangeRate.toLocaleString()} UGX. Rates are subject to change without notice.
+                          💱 Converted at 1 {currency} = {(exchangeRates[currency] || 0).toLocaleString()} UGX. Rates are subject to change without notice.
                         </div>
                       )}
 
