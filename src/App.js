@@ -3,11 +3,13 @@ import { Download, Plus, Trash2, Building2, RefreshCw, CreditCard, Smartphone, A
 import RichTextEditor, { normalizeRichText } from './components/RichTextEditor';
 
 const CURRENCY_OPTIONS = {
-  UGX: { buttonLabel: 'UGX', symbol: 'UGX', decimals: 0 },
-  USD: { buttonLabel: 'USD ($)', symbol: '$', decimals: 2 },
-  EUR: { buttonLabel: 'EUR (€)', symbol: '€', decimals: 2 },
-  GBP: { buttonLabel: 'GBP (£)', symbol: '£', decimals: 2 }
+  UGX: { buttonLabel: 'UGX', decimals: 0 },
+  USD: { buttonLabel: 'USD', decimals: 2 },
+  EUR: { buttonLabel: 'EUR', decimals: 2 },
+  GBP: { buttonLabel: 'GBP', decimals: 2 }
 };
+
+const FOREIGN_CURRENCY_CODES = ['USD', 'EUR', 'GBP'];
 
 const DEFAULT_EXCHANGE_RATES = {
   USD: 3700,
@@ -108,12 +110,16 @@ const InvoiceGenerator = () => {
     try {
       const res = await fetch('https://open.er-api.com/v6/latest/USD');
       const data = await res.json();
-      if (data?.rates?.UGX && data?.rates?.EUR && data?.rates?.GBP) {
-        setExchangeRates({
-          USD: Math.round(data.rates.UGX),
-          EUR: Math.round(data.rates.UGX / data.rates.EUR),
-          GBP: Math.round(data.rates.UGX / data.rates.GBP)
-        });
+      const ugxRate = data?.rates?.UGX;
+      const nextExchangeRates = FOREIGN_CURRENCY_CODES.reduce((rates, currencyCode) => {
+        const currencyRate = data?.rates?.[currencyCode];
+        if (!ugxRate || !currencyRate) throw new Error('Invalid response');
+        rates[currencyCode] = Math.round(ugxRate / currencyRate);
+        return rates;
+      }, {});
+
+      if (Object.keys(nextExchangeRates).length === FOREIGN_CURRENCY_CODES.length) {
+        setExchangeRates(nextExchangeRates);
         setRateLastUpdated(new Date().toLocaleTimeString());
       } else throw new Error('Invalid response');
     } catch {
@@ -134,14 +140,48 @@ const InvoiceGenerator = () => {
     return { subtotal, taxAmount, companyShareAmount, total, balanceDue };
   };
 
-  // Prices are stored in UGX; foreign currencies are derived from their UGX exchange rates.
-  const formatCurrency = (ugxAmount) => {
-    const selectedCurrency = CURRENCY_OPTIONS[currency] || CURRENCY_OPTIONS.UGX;
-    if (currency === 'UGX') return `UGX ${Math.round(ugxAmount).toLocaleString()}`;
+  const parseAmount = (value) => parseFloat(value) || 0;
+  const getCurrencyOption = (currencyCode = currency) => CURRENCY_OPTIONS[currencyCode] || CURRENCY_OPTIONS.UGX;
+  const getUgxExchangeRate = (currencyCode = currency) => currencyCode === 'UGX' ? 1 : exchangeRates[currencyCode];
 
-    const exchangeRate = exchangeRates[currency] || 1;
-    const convertedAmount = ugxAmount / exchangeRate;
-    return `${selectedCurrency.symbol}${convertedAmount.toLocaleString(undefined, {
+  // Amounts are stored in UGX, while form inputs and document totals use the selected currency.
+  const convertFromUgx = (ugxAmount, currencyCode = currency) => {
+    if (currencyCode === 'UGX') return ugxAmount;
+
+    const exchangeRate = getUgxExchangeRate(currencyCode);
+    if (!exchangeRate || exchangeRate <= 0) {
+      return 0;
+    }
+
+    return ugxAmount / exchangeRate;
+  };
+
+  const convertToUgx = (amount, currencyCode = currency) => {
+    if (currencyCode === 'UGX') return amount;
+
+    const exchangeRate = getUgxExchangeRate(currencyCode);
+    if (!exchangeRate || exchangeRate <= 0) {
+      return 0;
+    }
+
+    return amount * exchangeRate;
+  };
+
+  const formatInputAmount = (ugxAmount) => {
+    const selectedCurrency = getCurrencyOption();
+    const convertedAmount = convertFromUgx(ugxAmount);
+    const safeAmount = Number.isFinite(convertedAmount) ? convertedAmount : 0;
+
+    return Number(safeAmount.toFixed(selectedCurrency.decimals)).toString();
+  };
+
+  const formatCurrency = (ugxAmount) => {
+    const selectedCurrency = getCurrencyOption();
+    const currencyCode = CURRENCY_OPTIONS[currency] ? currency : 'UGX';
+    const convertedAmount = convertFromUgx(ugxAmount, currencyCode);
+    const safeAmount = Number.isFinite(convertedAmount) ? convertedAmount : 0;
+
+    return `${currencyCode} ${safeAmount.toLocaleString('en-US', {
       minimumFractionDigits: selectedCurrency.decimals,
       maximumFractionDigits: selectedCurrency.decimals
     })}`;
@@ -158,7 +198,13 @@ const InvoiceGenerator = () => {
   const removeLineItem = (i) => setLineItems(lineItems.filter((_, idx) => idx !== i));
   const updateLineItem = (i, field, value) => {
     const updated = [...lineItems];
-    updated[i][field] = (field === 'price' || field === 'qty') ? parseFloat(value) || 0 : value;
+    if (field === 'price') {
+      updated[i][field] = convertToUgx(parseAmount(value));
+    } else if (field === 'qty') {
+      updated[i][field] = parseAmount(value);
+    } else {
+      updated[i][field] = value;
+    }
     setLineItems(updated);
   };
 
@@ -252,13 +298,13 @@ const InvoiceGenerator = () => {
                       </button>
                     </div>
                     <div className="space-y-2">
-                      {['USD', 'EUR', 'GBP'].map((currencyCode) => (
+                      {FOREIGN_CURRENCY_CODES.map((currencyCode) => (
                         <div key={currencyCode} className="flex items-center gap-2">
                           <span className="w-10 text-xs font-bold text-emerald-800">{currencyCode}</span>
                           <input type="number" value={exchangeRates[currencyCode]}
                             onChange={(e) => updateExchangeRate(currencyCode, e.target.value)}
                             className="w-28 px-2 py-1 border border-emerald-300 rounded text-sm font-bold text-emerald-900 bg-white" />
-                          <span className="text-xs text-emerald-700">UGX per {CURRENCY_OPTIONS[currencyCode].symbol}1</span>
+                          <span className="text-xs text-emerald-700">UGX per 1 {currencyCode}</span>
                         </div>
                       ))}
                     </div>
@@ -385,9 +431,10 @@ const InvoiceGenerator = () => {
                     {/* Deposit Paid — invoice + receipt */}
                     {(isInvoice || isReceipt) && (
                       <div>
-                        <p className={labelClass}>Deposit / Amount Paid (UGX Base)</p>
-                        <input type="number" placeholder="0" value={documentDetails.depositPaid}
-                          onChange={(e) => setDocumentDetails({ ...documentDetails, depositPaid: parseFloat(e.target.value) || 0 })}
+                        <p className={labelClass}>Deposit / Amount Paid ({currency})</p>
+                        <input type="number" placeholder="0" value={formatInputAmount(documentDetails.depositPaid)}
+                          step={currency === 'UGX' ? '1' : '0.01'}
+                          onChange={(e) => setDocumentDetails({ ...documentDetails, depositPaid: convertToUgx(parseAmount(e.target.value)) })}
                           className={inputClass} />
                       </div>
                     )}
@@ -429,7 +476,8 @@ const InvoiceGenerator = () => {
                           onChange={(e) => updateLineItem(index, 'description', e.target.value)}
                           className="w-full px-2 py-1.5 border border-stone-300 rounded-md text-xs mb-2" />
                         <div className="grid grid-cols-3 gap-1.5">
-                          <input type="number" placeholder="Price (UGX base)" value={item.price}
+                          <input type="number" placeholder={`Price (${currency})`} value={formatInputAmount(item.price)}
+                            step={currency === 'UGX' ? '1' : '0.01'}
                             onChange={(e) => updateLineItem(index, 'price', e.target.value)}
                             className="px-2 py-1.5 border border-stone-300 rounded-md text-xs" />
                           <input type="number" placeholder="Qty" value={item.qty}
